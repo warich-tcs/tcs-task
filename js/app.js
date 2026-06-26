@@ -69,6 +69,53 @@ function genLocalId(prefix) {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
 }
 
+// ── Button Loading State ──────────────────────────────────────
+// ใช้ป้องกันกดซ้ำระหว่างรอ API response
+const _btnOriginal = new WeakMap();
+
+function btnLoading(btnEl, text = 'กำลังบันทึก...') {
+  if (!btnEl) return;
+  _btnOriginal.set(btnEl, { text: btnEl.textContent, disabled: btnEl.disabled });
+  btnEl.disabled = true;
+  btnEl.textContent = text;
+  btnEl.style.opacity = '0.6';
+  btnEl.style.cursor = 'not-allowed';
+}
+
+function btnReset(btnEl) {
+  if (!btnEl) return;
+  const orig = _btnOriginal.get(btnEl);
+  if (orig) {
+    btnEl.disabled = orig.disabled;
+    btnEl.textContent = orig.text;
+  }
+  btnEl.style.opacity = '';
+  btnEl.style.cursor = '';
+}
+
+// Lock ปุ่มทุกปุ่มใน modal footer ระหว่าง async operation
+function lockModal(modalId) {
+  document.querySelectorAll(`#${modalId} button`).forEach(btn => {
+    if (!btn.disabled) {
+      _btnOriginal.set(btn, { text: btn.textContent, disabled: false });
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+    }
+  });
+}
+
+function unlockModal(modalId) {
+  document.querySelectorAll(`#${modalId} button`).forEach(btn => {
+    const orig = _btnOriginal.get(btn);
+    if (orig) {
+      btn.disabled = orig.disabled;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+    }
+  });
+}
+
 // ── API — ใช้ JSONP เพื่อ bypass GAS CORS redirect ────────────
 // GAS redirect ทุก request ผ่าน googleusercontent.com ซึ่ง fetch ติด CORS
 // JSONP inject <script> tag แทน ซึ่ง browser ไม่มี CORS restriction
@@ -170,11 +217,12 @@ async function doChangePwProfile() {
   const old = $('pp-old').value; const nw = $('pp-new').value;
   if (!old||!nw) { toast('กรุณากรอกรหัสผ่าน','err'); return; }
   if (nw.length<6) { toast('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร','err'); return; }
+  lockModal('m-profile');
   try {
     await api('changePassword', { email: S.user.email, oldPassword: old, newPassword: nw });
     toast('เปลี่ยนรหัสผ่านสำเร็จ','ok');
     closeModal('m-profile');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); unlockModal('m-profile'); }
 }
 
 function doLogout() {
@@ -754,6 +802,7 @@ function openProjectModal(id=null) {
 async function saveProject() {
   const name=$('pf-name').value.trim();
   if (!name) { toast('กรุณาใส่ชื่อ Project','err'); return; }
+  lockModal('m-project');
   loading(true);
   const payload={
     name, description:$('pf-desc').value.trim(),
@@ -769,17 +818,19 @@ async function saveProject() {
     } else {
       const data=await api('createProject',payload);
       S.projects.push(data.project);
+      toast('สร้าง Project สำเร็จ','ok');
     }
     updateSidebar();
     renderProjectsGrid();
     closeModal('m-project');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); unlockModal('m-project'); }
   finally { loading(false); }
 }
 
 async function deleteProject() {
   if (!S.editingProjectId) return;
   if (!confirm('ลบ Project นี้? Tasks และ Milestones ทั้งหมดจะถูกลบด้วย')) return;
+  lockModal('m-project');
   loading(true);
   try {
     await api('deleteProject',{projectId:S.editingProjectId});
@@ -788,7 +839,7 @@ async function deleteProject() {
     S.milestones=S.milestones.filter(m=>m.projectId!==S.editingProjectId);
     closeModal('m-project'); updateSidebar(); renderProjectsGrid();
     toast('ลบ Project สำเร็จ','ok');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); unlockModal('m-project'); }
   finally { loading(false); }
 }
 
@@ -811,6 +862,7 @@ function openMilestoneModal(id=null) {
 async function saveMilestone() {
   const name=$('msf-name').value.trim();
   if (!name) { toast('กรุณาใส่ชื่อ Milestone','err'); return; }
+  lockModal('m-milestone');
   loading(true);
   const payload={
     name, description:$('msf-desc').value.trim(),
@@ -830,13 +882,14 @@ async function saveMilestone() {
     }
     renderProjectDetail(S.currentProject);
     closeModal('m-milestone');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); unlockModal('m-milestone'); }
   finally { loading(false); }
 }
 
 async function deleteMilestone() {
   if (!S.editingMsId) return;
   if (!confirm('ลบ Milestone นี้? Tasks ที่เชื่อมอยู่จะยังคงอยู่')) return;
+  lockModal('m-milestone');
   loading(true);
   try {
     await api('deleteMilestone',{milestoneId:S.editingMsId});
@@ -845,7 +898,7 @@ async function deleteMilestone() {
     renderProjectDetail(S.currentProject);
     closeModal('m-milestone');
     toast('ลบ Milestone สำเร็จ','ok');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); unlockModal('m-milestone'); }
   finally { loading(false); }
 }
 
@@ -897,6 +950,10 @@ async function addTaskComment() {
   const inp=$('task-comment-inp');
   const text=inp.value.trim();
   if(!text||!S.editingTaskId) return;
+  // ล็อกปุ่มส่ง comment ระหว่างรอ
+  const sendBtn = inp.nextElementSibling;
+  btnLoading(sendBtn, 'กำลังส่ง...');
+  inp.disabled = true;
   inp.value='';
   const c={author:S.user.name||S.user.email, text, ts:new Date().toISOString()};
   try {
@@ -906,11 +963,13 @@ async function addTaskComment() {
     renderTaskComments(task?.comments||[]);
     toast('เพิ่ม Comment สำเร็จ','ok');
   } catch(e){ toast('เกิดข้อผิดพลาด','err'); }
+  finally { btnReset(sendBtn); inp.disabled=false; }
 }
 
 async function saveTask() {
   const title=$('tf-name').value.trim();
   if(!title){ toast('กรุณาใส่ชื่อ Task','err'); return; }
+  lockModal('m-task');
   loading(true);
   const payload={
     projectId:S.currentProject, title,
@@ -935,12 +994,13 @@ async function saveTask() {
     closeModal('m-task');
     renderProjectDetail(S.currentProject);
     updateProjectStats();
-  } catch(e){ toast(e.message,'err'); }
+  } catch(e){ toast(e.message,'err'); unlockModal('m-task'); }
   finally { loading(false); }
 }
 
 async function deleteTask() {
   if(!S.editingTaskId||!confirm('ลบ Task นี้?')) return;
+  lockModal('m-task');
   loading(true);
   try {
     await api('deleteTask',{taskId:S.editingTaskId});
@@ -949,7 +1009,7 @@ async function deleteTask() {
     renderProjectDetail(S.currentProject);
     updateProjectStats();
     toast('ลบ Task สำเร็จ','ok');
-  } catch(e){ toast(e.message,'err'); }
+  } catch(e){ toast(e.message,'err'); unlockModal('m-task'); }
   finally { loading(false); }
 }
 
