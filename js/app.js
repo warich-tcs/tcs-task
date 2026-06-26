@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycby6vKcHDsED_FjUE3jYNVr4r_bJJqo0CjJ8byDWDVdaO6Dl_wC4hsUoInqkFOv20E44/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbylDsJTZiYBIswuqbhiBZpF4J1-KDnSY7LL7_vv9NqJW7JkXzvoBuOv20_VTnuldd7k/exec';
 
 /* ═══════════════════════════════════════════════════════════════
    THE CODE · Projects — app.js  v3
