@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════
+// CONFIG — เปลี่ยน URL ด้านล่างให้เป็น GAS URL ของคุณ
+// ═══════════════════════════════════════════════
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbygzIz-cnlPWZVews_AwqApZ1Z1oUhyOyNLy9v-rjn32KV7kEbUKWRmuPFQZc1Vc7O7/exec';
+
 /* ══════════════════════════════════════════════════════
    THE CODE · Projects — app.js  v2
    Arch: Projects (แม่) → Milestones → Tasks/Kanban (ลูก)
@@ -69,13 +74,24 @@ function genLocalId(prefix) {
 
 // ── API ───────────────────────────────────────────────────────
 async function api(action, payload={}) {
+  // Google Apps Script requires GET with URLSearchParams to avoid CORS preflight
+  // POST with text/plain works but GAS redirects — must use redirect:'follow'
   const body = { action, token: S.token, ...payload };
-  const res = await fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify(body),
-    headers:{'Content-Type':'text/plain'},
+
+  // Encode payload as URL param for GET (avoids all CORS issues with GAS)
+  const params = new URLSearchParams({ data: JSON.stringify(body) });
+  const url = GAS_URL + '?' + params.toString();
+
+  const res = await fetch(url, {
+    method: 'GET',
+    redirect: 'follow',
   });
-  const data = await res.json();
+
+  if (!res.ok) throw new Error('Network error: ' + res.status);
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); }
+  catch(e) { throw new Error('Response ไม่ใช่ JSON — ตรวจสอบ GAS URL และ Deploy settings'); }
   if (!data.ok) throw new Error(data.error || 'API Error');
   return data;
 }
