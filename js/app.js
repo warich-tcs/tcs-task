@@ -191,7 +191,7 @@ async function bootApp() {
   const av = $('top-av');
   av.textContent = initials(u.name||u.email);
   av.style.background = avColor(u.name||u.email);
-  av.style.color = '#080c14';
+  av.style.color = '#ffffff';
 
   const isAdmin = u.role==='Admin';
   if (isAdmin) {
@@ -596,7 +596,7 @@ function buildTaskCard(task) {
     <div class="tc-title">${esc(task.title)}</div>
     <div class="tc-meta">
       ${task.points>0?`<div style="width:20px;height:20px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text2);font-family:'Inter',monospace">${task.points}</div>`:''}
-      ${memberName?`<div class="av av-sm" style="background:${avColor(memberName)};color:#080c14" title="${memberName}">${initials(memberName)}</div>`:''}
+      ${memberName?`<div class="av av-sm" style="background:${avColor(memberName)};color:#ffffff" title="${memberName}">${initials(memberName)}</div>`:''}
       ${ms?`<span class="tc-ms">📍 ${esc(ms.name.slice(0,18))}</span>`:''}
       ${task.dueDate?`<span style="font-size:10px;color:${overdue?'var(--danger)':'var(--text2)'};">${overdue?'⚠️ ':'' }${fmtDate(task.dueDate)}</span>`:''}
       ${task.commentCount>0?`<span style="font-size:10px;color:var(--text3);margin-left:auto">💬${task.commentCount}</span>`:''}
@@ -719,7 +719,7 @@ function renderMembersView() {
       ${S.members.map(m=>`
         <div style="display:grid;grid-template-columns:1fr 200px 100px;gap:0;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center">
           <div style="display:flex;align-items:center;gap:9px">
-            <div class="av av-sm" style="background:${avColor(m.name||m.email)};color:#080c14">${initials(m.name||m.email)}</div>
+            <div class="av av-sm" style="background:${avColor(m.name||m.email)};color:#ffffff">${initials(m.name||m.email)}</div>
             <span style="font-size:13px;font-weight:500;color:var(--text)">${esc(m.name||m.email)}</span>
           </div>
           <span style="font-size:11px;color:var(--text2)">${esc(m.email)}</span>
@@ -884,7 +884,7 @@ function renderTaskComments(comments) {
     const d=document.createElement('div');
     d.style.cssText='background:var(--bg);border-radius:7px;padding:7px 10px';
     d.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-      <div class="av av-sm" style="background:${avColor(c.author)};color:#080c14">${initials(c.author)}</div>
+      <div class="av av-sm" style="background:${avColor(c.author)};color:#ffffff">${initials(c.author)}</div>
       <span style="font-size:10px;font-weight:600;color:var(--text2)">${esc(c.author)}</span>
       <span style="font-size:9px;color:var(--text3)">${fmtDate(c.ts)}</span>
     </div>
@@ -966,7 +966,7 @@ function openProfileModal() {
   const roleColors={Admin:'var(--em)',Manager:'var(--violet)',Member:'var(--info)',Viewer:'var(--text2)'};
   $('prof-av').textContent=initials(u.name||u.email);
   $('prof-av').style.background=avColor(u.name||u.email);
-  $('prof-av').style.color='#080c14';
+  $('prof-av').style.color='#ffffff';
   $('prof-name').textContent=u.name||u.email;
   $('prof-email').textContent=u.email;
   const rEl=$('prof-role');
