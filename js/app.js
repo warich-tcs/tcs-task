@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONFIG — เปลี่ยน URL ด้านล่างให้เป็น GAS URL ของคุณ
 // ═══════════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEqcgOEtAHb2xyjhJK3kAiWM-FRyjzCS6R_ZAsEx1PGrFzjjOneLTbuJc7EwJLjx6g/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycby6vKcHDsED_FjUE3jYNVr4r_bJJqo0CjJ8byDWDVdaO6Dl_wC4hsUoInqkFOv20E44/exec';
 
 /* ══════════════════════════════════════════════════════
    THE CODE · Projects — app.js  v2
@@ -62,11 +62,8 @@ function fmtDate(d) {
   try { return new Date(d).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}); } catch { return d; }
 }
 
-function simpleHash(s) {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h<<5)+h) ^ s.charCodeAt(i);
-  return (h>>>0).toString(16).padStart(8,'0');
-}
+// หมายเหตุ: ส่ง password plaintext ไปให้ GAS hash ด้วย simpleHash (ตรงกับ browser)
+// (ไม่ hash ฝั่ง browser เพราะ bitwise result ต่างกันระหว่าง runtime)
 
 function genLocalId(prefix) {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
@@ -141,7 +138,7 @@ async function doLogin() {
   if (!email||!pw) { errEl.textContent='กรุณากรอกข้อมูล'; errEl.style.display='block'; return; }
   btn.disabled=true; btn.textContent='กำลังตรวจสอบ...';
   try {
-    const data = await api('login',{email, passwordHash:simpleHash(pw)});
+    const data = await api('login', { email, password: pw });
     S.user  = data.user;
     S.token = data.token;
     sessionStorage.setItem('sess', JSON.stringify({user:data.user, token:data.token}));
@@ -162,7 +159,7 @@ async function doChangePassword() {
   if (newPw.length<6) { errEl.textContent='รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร'; errEl.style.display='block'; return; }
   $('cp-btn').disabled=true; $('cp-btn').textContent='กำลังเปลี่ยน...';
   try {
-    await api('changePassword',{email, oldHash:simpleHash(oldPw), newHash:simpleHash(newPw)});
+    await api('changePassword', { email, oldPassword: oldPw, newPassword: newPw });
     toast('เปลี่ยนรหัสผ่านสำเร็จ','ok');
     authTab('login');
   } catch(e) { errEl.textContent=e.message||'เกิดข้อผิดพลาด'; errEl.style.display='block'; }
@@ -174,7 +171,7 @@ async function doChangePwProfile() {
   if (!old||!nw) { toast('กรุณากรอกรหัสผ่าน','err'); return; }
   if (nw.length<6) { toast('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร','err'); return; }
   try {
-    await api('changePassword',{email:S.user.email, oldHash:simpleHash(old), newHash:simpleHash(nw)});
+    await api('changePassword', { email: S.user.email, oldPassword: old, newPassword: nw });
     toast('เปลี่ยนรหัสผ่านสำเร็จ','ok');
     closeModal('m-profile');
   } catch(e) { toast(e.message,'err'); }
