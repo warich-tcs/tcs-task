@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONFIG — เปลี่ยน URL ด้านล่างให้เป็น GAS URL ของคุณ
 // ═══════════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbygzIz-cnlPWZVews_AwqApZ1Z1oUhyOyNLy9v-rjn32KV7kEbUKWRmuPFQZc1Vc7O7/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxQ2ThUrjEWS-e8kqnhyB_VbUGYUlTl7xZHtAAwQ7WZ0NU8kGG_hIKaIvjMBxREso0/exec';
 
 /* ══════════════════════════════════════════════════════
    THE CODE · Projects — app.js  v2
