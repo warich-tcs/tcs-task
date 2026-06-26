@@ -290,7 +290,19 @@ function goProjectDetail(id) {
 }
 
 // ── Modal ─────────────────────────────────────────────────────
-function closeModal(id) { $(id).style.display='none'; }
+function closeModal(id) {
+  const el=$(id); if(!el) return;
+  el.style.display='none';
+  // Unlock ปุ่มทุกปุ่มใน modal เสมอ เพื่อให้พร้อมใช้งานครั้งถัดไป
+  unlockModal(id);
+  // Reset form inputs ใน modal
+  el.querySelectorAll('input:not([type=hidden]), textarea').forEach(inp => {
+    if(inp.type==='checkbox'||inp.type==='radio') inp.checked=false;
+    else inp.value='';
+    inp.disabled=false;
+  });
+  el.querySelectorAll('select').forEach(sel => sel.disabled=false);
+}
 
 // ── Projects Grid ─────────────────────────────────────────────
 function setProjFilter(f) {
@@ -694,6 +706,8 @@ function renderUsersTable() {
 
 function openUserModal(email=null) {
   S.editingUserId=email;
+  // Re-enable ทุก element ก่อนตั้งค่า
+  $('m-user').querySelectorAll('select,input,button,textarea').forEach(el=>el.disabled=false);
   $('m-user-title').textContent=email?'แก้ไข User':'เพิ่ม User ใหม่';
   $('uf-pw-section').style.display=email?'none':'block';
   $('uf-reset-section').style.display=email?'block':'none';
@@ -705,7 +719,8 @@ function openUserModal(email=null) {
     $('uf-new-pw').value='';
   } else {
     $('uf-email').value=''; $('uf-email').readOnly=false;
-    $('uf-name').value=''; $('uf-role').value='Member'; $('uf-active').value='true'; $('uf-pw').value='';
+    $('uf-name').value=''; $('uf-role').value='Member';
+    $('uf-active').value='true'; $('uf-pw').value='';
   }
   $('m-user').style.display='flex';
 }
@@ -733,15 +748,21 @@ async function saveUser() {
 // ── Project Modal ─────────────────────────────────────────────
 function openProjectModal(id=null) {
   S.editingProjectId=id;
-  $('m-proj-title').textContent=id?'แก้ไข Project':'สร้าง Project ใหม่';
-  $('m-proj-del').style.display=id&&S.user?.role==='Admin'?'block':'none';
-  if(id){ const p=S.projects.find(x=>x.id===id)||{};
-    $('pf-name').value=p.name||''; $('pf-desc').value=p.description||'';
-    $('pf-status').value=p.status||'planning'; $('pf-start').value=p.startDate||''; $('pf-end').value=p.endDate||'';
-    S.projColor=p.color||'#00a87a';
+  $('m-proj-title').textContent = id ? 'แก้ไข Project' : 'สร้าง Project ใหม่';
+  $('m-proj-del').style.display = id && S.user?.role==='Admin' ? 'block' : 'none';
+  // Re-enable selects ที่อาจถูก disable โดย closeModal
+  $('m-project').querySelectorAll('select,input,button,textarea').forEach(el => el.disabled=false);
+  if(id){
+    const p=S.projects.find(x=>x.id===id)||{};
+    $('pf-name').value    = p.name        || '';
+    $('pf-desc').value    = p.description || '';
+    $('pf-status').value  = p.status      || 'planning';
+    $('pf-start').value   = p.startDate   || '';
+    $('pf-end').value     = p.endDate     || '';
+    S.projColor = p.color || '#00a87a';
     $('proj-swatches').querySelectorAll('.swatch').forEach(s=>s.classList.toggle('on',s.dataset.color===S.projColor));
   } else {
-    ['pf-name','pf-desc','pf-start','pf-end'].forEach(id=>$(id).value='');
+    $('pf-name').value=''; $('pf-desc').value=''; $('pf-start').value=''; $('pf-end').value='';
     $('pf-status').value='planning'; S.projColor='#00a87a';
     $('proj-swatches').querySelectorAll('.swatch').forEach((s,i)=>s.classList.toggle('on',i===0));
   }
@@ -779,12 +800,21 @@ async function deleteProject() {
 // ── Milestone Modal ───────────────────────────────────────────
 function openMilestoneModal(id=null) {
   S.editingMsId=id;
-  $('m-ms-title').textContent=id?'แก้ไข Milestone':'สร้าง Milestone ใหม่';
-  $('m-ms-del').style.display=id?'block':'none';
-  if(id){ const ms=S.milestones.find(m=>m.id===id)||{};
-    $('msf-name').value=ms.name||''; $('msf-desc').value=ms.description||'';
-    $('msf-date').value=ms.targetDate||''; $('msf-status').value=ms.status||'pending';
-  } else { ['msf-name','msf-desc','msf-date'].forEach(id=>$(id).value=''); $('msf-status').value='pending'; }
+  // Set values ก่อน display เสมอ (closeModal จะ reset form ไปแล้ว)
+  $('m-ms-title').textContent = id ? 'แก้ไข Milestone' : 'สร้าง Milestone ใหม่';
+  $('m-ms-del').style.display = id ? 'block' : 'none';
+  if(id){
+    const ms=S.milestones.find(m=>m.id===id)||{};
+    $('msf-name').value   = ms.name        || '';
+    $('msf-desc').value   = ms.description || '';
+    $('msf-date').value   = ms.targetDate  || '';
+    $('msf-status').value = ms.status      || 'pending';
+  } else {
+    $('msf-name').value   = '';
+    $('msf-desc').value   = '';
+    $('msf-date').value   = '';
+    $('msf-status').value = 'pending';
+  }
   $('m-milestone').style.display='flex';
 }
 
@@ -795,10 +825,23 @@ async function saveMilestone() {
   try {
     if(S.editingMsId){
       await api('updateMilestone',{milestoneId:S.editingMsId,...payload});
-      const idx=S.milestones.findIndex(m=>m.id===S.editingMsId); if(idx!==-1) S.milestones[idx]={...S.milestones[idx],...payload};
-      toast('บันทึกสำเร็จ','ok');
-    } else { const data=await api('createMilestone',payload); S.milestones.push(data.milestone); toast('สร้าง Milestone สำเร็จ','ok'); }
-    renderProjectDetail(S.currentProject); closeModal('m-milestone');
+      const idx=S.milestones.findIndex(m=>m.id===S.editingMsId);
+      if(idx!==-1) S.milestones[idx]={...S.milestones[idx],...payload};
+      toast('บันทึก Milestone สำเร็จ','ok');
+    } else {
+      const data=await api('createMilestone',payload);
+      S.milestones.push(data.milestone);
+      toast('สร้าง Milestone สำเร็จ','ok');
+    }
+    // Sort milestones by targetDate ทันทีหลังบันทึก
+    S.milestones.sort((a,b)=>{
+      if(!a.targetDate && !b.targetDate) return 0;
+      if(!a.targetDate) return 1;   // ไม่มีวันที่ → ไปไว้ท้าย
+      if(!b.targetDate) return -1;
+      return a.targetDate.localeCompare(b.targetDate);
+    });
+    closeModal('m-milestone');
+    renderProjectDetail(S.currentProject);
   } catch(e){ toast(e.message,'err'); unlockModal('m-milestone'); }
   finally { loading(false); }
 }
@@ -818,8 +861,12 @@ async function deleteMilestone() {
 // ── Task Modal ────────────────────────────────────────────────
 function openTaskModal(defaultLane='current') {
   S.editingTaskId=null; S.replyingTo=null;
+  // Re-enable ทุก element ก่อนตั้งค่า
+  $('m-task').querySelectorAll('select,input,button,textarea').forEach(el=>el.disabled=false);
   $('m-task-title').textContent='สร้าง Task ใหม่'; $('m-task-id').textContent='';
   $('tf-name').value=''; $('tf-desc').value='';
+  $('tf-type').value=getTypes()[0]?.id||'feature';
+  $('tf-prio').value=getPriorities()[2]?.id||'P2';
   $('tf-lane').value=defaultLane; $('tf-pts').value='0';
   $('tf-assignee').value=''; $('tf-ms').value=''; $('tf-due').value='';
   $('m-task-del').style.display='none'; $('task-comments-section').style.display='none';
@@ -829,6 +876,8 @@ function openTaskModal(defaultLane='current') {
 function openTaskModal_edit(taskId) {
   const t=S.tasks.find(x=>x.id===taskId); if(!t) return;
   S.editingTaskId=taskId; S.replyingTo=null;
+  // Re-enable ทุก element ก่อนตั้งค่า
+  $('m-task').querySelectorAll('select,input,button,textarea').forEach(el=>el.disabled=false);
   $('m-task-title').textContent='แก้ไข Task'; $('m-task-id').textContent=t.id;
   $('tf-name').value=t.title||''; $('tf-desc').value=t.description||'';
   $('tf-type').value=t.type||'feature'; $('tf-prio').value=t.priority||'P2';
