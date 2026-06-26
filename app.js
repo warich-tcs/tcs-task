@@ -1,781 +1,953 @@
-/* ═══════════════════════════════════════════════════
-   THE CODE · Board — app.js
-   Frontend Logic: Auth, Board, Kanban, Drag & Drop
-═══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   THE CODE · Projects — app.js  v2
+   Arch: Projects (แม่) → Milestones → Tasks/Kanban (ลูก)
+══════════════════════════════════════════════════════ */
 
-// ── State ──────────────────────────────────────────
-const STATE = {
-  currentUser: null,
-  sessionToken: null,
-  currentBoard: null,
-  stories: [],
-  epics: [],
-  members: [],
-  boards: [],
-  currentView: 'board',
-  filters: { type: '', priority: '', assignee: '', search: '' },
-  editingStoryId: null,
-  dragCard: null,
-  dragSourceLane: null,
+// ── State ────────────────────────────────────────────────────
+const S = {
+  user: null, token: null,
+  projects: [], tasks: [], milestones: [], members: [],
+  currentProject: null,
+  editingProjectId: null, editingMsId: null, editingTaskId: null,
+  taskFilters: { type: '', ms: '', assignee: '', search: '' },
+  projFilter: '',
+  projColor: '#00d4a0',
+  detailTab: 'timeline',
+  dragTaskId: null, dragLane: null,
 };
 
 const LANES = [
-  { id: 'icebox',  label: 'Icebox',            emoji: '❄️',  cls: 'lane-icebox'  },
-  { id: 'backlog', label: 'Backlog',            emoji: '📋',  cls: 'lane-backlog' },
-  { id: 'current', label: 'Current Iteration',  emoji: '🔵',  cls: 'lane-current' },
-  { id: 'review',  label: 'In Review',          emoji: '🔍',  cls: 'lane-review'  },
-  { id: 'done',    label: 'Done',               emoji: '✅',  cls: 'lane-done'    },
+  { id:'icebox',  label:'Icebox',    emoji:'❄️', cls:'l-icebox'  },
+  { id:'backlog', label:'Backlog',   emoji:'📋', cls:'l-backlog' },
+  { id:'current', label:'Current',   emoji:'🔵', cls:'l-current' },
+  { id:'review',  label:'Review',    emoji:'🔍', cls:'l-review'  },
+  { id:'done',    label:'Done',      emoji:'✅', cls:'l-done'    },
 ];
 
-const ROLE_COLORS = { Admin: '#00c896', Manager: '#a78bfa', Member: '#93c5fd', Viewer: '#94a3b8' };
-const PRIO_COLORS = { P0: '#ef4444', P1: '#f97316', P2: '#eab308', P3: '#94a3b8' };
-const AVATAR_COLORS = ['#00c896','#a78bfa','#93c5fd','#f59e0b','#e040c8','#06b6d4'];
+const PROJ_COLORS = ['#00d4a0','#3b9eff','#7c5cfc','#f5a623','#f04060','#06b6d4','#10b981','#ec4899'];
+const AV_COLORS   = ['#00d4a0','#7c5cfc','#3b9eff','#f5a623','#f04060','#06b6d4'];
+const MS_EMOJI = { pending:'⏳', inprogress:'🔵', done:'✅', overdue:'🔴' };
 
-// ── Utilities ──────────────────────────────────────
-function toast(msg, type = 'info') {
+// ── Utils ─────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function toast(msg, type='inf') {
   const el = document.createElement('div');
-  el.className = `toast toast-${type}`;
+  el.className = `toast t-${type}`;
   el.textContent = msg;
-  document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
 }
 
-function setLoading(on) {
-  document.getElementById('loading-indicator').style.display = on ? 'flex' : 'none';
+function loading(on) { $('loading-wrap').style.display = on ? 'flex' : 'none'; }
+
+function initials(name='') {
+  return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || '?';
 }
 
-function avatarInitials(name = '') {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-}
-
-function avatarColor(name = '') {
+function avColor(name='') {
   let h = 0;
-  for (const c of name) h = ((h << 5) - h) + c.charCodeAt(0);
-  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+  for (const c of name) h = ((h<<5)-h) + c.charCodeAt(0);
+  return AV_COLORS[Math.abs(h) % AV_COLORS.length];
 }
 
-function formatDate(d) {
+function fmtDate(d) {
   if (!d) return '';
-  try { return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }); } catch { return d; }
+  try { return new Date(d).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}); } catch { return d; }
 }
 
-function simpleHash(str) {
-  // Simple deterministic hash for client — actual auth done server-side
+function simpleHash(s) {
   let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-  return (h >>> 0).toString(16).padStart(8, '0');
+  for (let i = 0; i < s.length; i++) h = ((h<<5)+h) ^ s.charCodeAt(i);
+  return (h>>>0).toString(16).padStart(8,'0');
 }
 
-// ── API ────────────────────────────────────────────
-async function api(action, payload = {}) {
-  const body = { action, token: STATE.sessionToken, ...payload };
-  try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'text/plain' },
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'API error');
-    return data;
-  } catch (err) {
-    console.error('[API]', action, err);
-    throw err;
-  }
+function genLocalId(prefix) {
+  return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
 }
 
-// ── Auth ───────────────────────────────────────────
-function switchAuthTab(tab) {
-  ['login','change-pw'].forEach(t => {
-    document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
-    document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'change-pw')));
+// ── API ───────────────────────────────────────────────────────
+async function api(action, payload={}) {
+  const body = { action, token: S.token, ...payload };
+  const res = await fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify(body),
+    headers:{'Content-Type':'text/plain'},
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'API Error');
+  return data;
+}
+
+// ── Auth ──────────────────────────────────────────────────────
+function authTab(t) {
+  $('t-login').style.display  = t==='login' ? 'block' : 'none';
+  $('t-chpw').style.display   = t==='chpw'  ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((btn,i) => {
+    btn.classList.toggle('on', (i===0&&t==='login') || (i===1&&t==='chpw'));
   });
 }
 
-async function loginSubmit() {
-  const email    = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errEl    = document.getElementById('login-error');
-  const btn      = document.getElementById('login-btn');
-
+async function doLogin() {
+  const email = $('l-email').value.trim();
+  const pw    = $('l-pw').value;
+  const errEl = $('l-err');
+  const btn   = $('l-btn');
   errEl.style.display = 'none';
-  if (!email || !password) { errEl.textContent = 'กรุณากรอกอีเมลและรหัสผ่าน'; errEl.style.display = 'block'; return; }
-
-  btn.disabled = true;
-  btn.textContent = 'กำลังตรวจสอบ...';
-
+  if (!email||!pw) { errEl.textContent='กรุณากรอกข้อมูล'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='กำลังตรวจสอบ...';
   try {
-    const data = await api('login', { email, passwordHash: simpleHash(password) });
-    STATE.currentUser  = data.user;
-    STATE.sessionToken = data.token;
-    sessionStorage.setItem('session', JSON.stringify({ user: data.user, token: data.token }));
-    initApp();
-  } catch (e) {
+    const data = await api('login',{email, passwordHash:simpleHash(pw)});
+    S.user  = data.user;
+    S.token = data.token;
+    sessionStorage.setItem('sess', JSON.stringify({user:data.user, token:data.token}));
+    bootApp();
+  } catch(e) {
     errEl.textContent = e.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
     errEl.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'เข้าสู่ระบบ';
-  }
+  } finally { btn.disabled=false; btn.textContent='เข้าสู่ระบบ'; }
 }
 
-async function changePasswordSubmit() {
-  const email   = document.getElementById('cp-email').value.trim();
-  const oldPw   = document.getElementById('cp-old').value;
-  const newPw   = document.getElementById('cp-new').value;
-  const errEl   = document.getElementById('cp-error');
-  const btn     = document.getElementById('cp-btn');
-
-  errEl.style.display = 'none';
-  if (!email || !oldPw || !newPw) { errEl.textContent = 'กรุณากรอกข้อมูลให้ครบ'; errEl.style.display = 'block'; return; }
-  if (newPw.length < 6) { errEl.textContent = 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร'; errEl.style.display = 'block'; return; }
-
-  btn.disabled = true;
-  btn.textContent = 'กำลังเปลี่ยน...';
+async function doChangePassword() {
+  const email = $('cp-email').value.trim();
+  const oldPw = $('cp-old').value;
+  const newPw = $('cp-new').value;
+  const errEl = $('cp-err');
+  errEl.style.display='none';
+  if (!email||!oldPw||!newPw) { errEl.textContent='กรุณากรอกข้อมูล'; errEl.style.display='block'; return; }
+  if (newPw.length<6) { errEl.textContent='รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร'; errEl.style.display='block'; return; }
+  $('cp-btn').disabled=true; $('cp-btn').textContent='กำลังเปลี่ยน...';
   try {
-    await api('changePassword', { email, oldHash: simpleHash(oldPw), newHash: simpleHash(newPw) });
-    toast('เปลี่ยนรหัสผ่านสำเร็จ', 'success');
-    switchAuthTab('login');
-  } catch (e) {
-    errEl.textContent = e.message || 'เกิดข้อผิดพลาด';
-    errEl.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'เปลี่ยนรหัสผ่าน';
-  }
+    await api('changePassword',{email, oldHash:simpleHash(oldPw), newHash:simpleHash(newPw)});
+    toast('เปลี่ยนรหัสผ่านสำเร็จ','ok');
+    authTab('login');
+  } catch(e) { errEl.textContent=e.message||'เกิดข้อผิดพลาด'; errEl.style.display='block'; }
+  finally { $('cp-btn').disabled=false; $('cp-btn').textContent='เปลี่ยนรหัสผ่าน'; }
 }
 
-async function changePasswordFromProfile() {
-  const oldPw = document.getElementById('prof-old-pw').value;
-  const newPw = document.getElementById('prof-new-pw').value;
-  if (!oldPw || !newPw) { toast('กรุณากรอกรหัสผ่าน', 'error'); return; }
-  if (newPw.length < 6)  { toast('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร', 'error'); return; }
+async function doChangePwProfile() {
+  const old = $('pp-old').value; const nw = $('pp-new').value;
+  if (!old||!nw) { toast('กรุณากรอกรหัสผ่าน','err'); return; }
+  if (nw.length<6) { toast('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร','err'); return; }
   try {
-    await api('changePassword', {
-      email: STATE.currentUser.email,
-      oldHash: simpleHash(oldPw),
-      newHash: simpleHash(newPw)
-    });
-    toast('เปลี่ยนรหัสผ่านสำเร็จ', 'success');
-    document.getElementById('profile-modal').style.display = 'none';
-  } catch (e) { toast(e.message || 'เกิดข้อผิดพลาด', 'error'); }
+    await api('changePassword',{email:S.user.email, oldHash:simpleHash(old), newHash:simpleHash(nw)});
+    toast('เปลี่ยนรหัสผ่านสำเร็จ','ok');
+    closeModal('m-profile');
+  } catch(e) { toast(e.message,'err'); }
 }
 
-function logout() {
-  sessionStorage.removeItem('session');
-  STATE.currentUser = null; STATE.sessionToken = null;
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('app-screen').style.display = 'none';
+function doLogout() {
+  sessionStorage.removeItem('sess');
+  S.user=null; S.token=null;
+  $('auth').style.display='flex'; $('app').style.display='none';
 }
 
-function restoreSession() {
-  const raw = sessionStorage.getItem('session');
-  if (!raw) return false;
-  try {
-    const { user, token } = JSON.parse(raw);
-    STATE.currentUser  = user;
-    STATE.sessionToken = token;
-    return true;
-  } catch { return false; }
-}
+// ── Boot ──────────────────────────────────────────────────────
+async function bootApp() {
+  $('auth').style.display='none'; $('app').style.display='flex';
+  const u = S.user;
+  $('top-name').textContent = u.name || u.email;
+  const av = $('top-av');
+  av.textContent = initials(u.name||u.email);
+  av.style.background = avColor(u.name||u.email);
+  av.style.color = '#080c14';
 
-// ── App Init ───────────────────────────────────────
-async function initApp() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'flex';
-
-  const u = STATE.currentUser;
-  document.getElementById('user-display-name').textContent = u.name || u.email;
-  const av = document.getElementById('user-avatar');
-  av.textContent = avatarInitials(u.name || u.email);
-  av.style.background = avatarColor(u.name || u.email);
-
-  const isAdmin = u.role === 'Admin';
+  const isAdmin = u.role==='Admin';
   if (isAdmin) {
-    document.getElementById('btn-new-board').style.display = 'block';
-    document.getElementById('nav-members').style.display = 'flex';
+    $('btn-new-proj').style.display='block';
+    $('sb-members').style.display='flex';
   }
 
-  setLoading(true);
-  try {
-    await loadBoards();
-    // Load last board if any
-    const lastBoard = sessionStorage.getItem('lastBoard');
-    if (lastBoard && STATE.boards.find(b => b.id === lastBoard)) loadBoard(lastBoard);
-    else if (STATE.boards.length > 0) loadBoard(STATE.boards[0].id);
-    else showEmptyState();
-  } catch(e) { toast('โหลดข้อมูลไม่สำเร็จ: ' + e.message, 'error'); }
-  finally { setLoading(false); }
+  // Swatches
+  const sw = $('proj-swatches');
+  PROJ_COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className='swatch'; d.style.background=c; d.dataset.color=c;
+    d.onclick = () => { S.projColor=c; sw.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('on',s===d)); };
+    sw.appendChild(d);
+  });
+  sw.firstChild?.classList.add('on');
+
+  loading(true);
+  try { await loadAll(); }
+  catch(e) { toast('โหลดข้อมูลไม่สำเร็จ: '+e.message,'err'); }
+  finally { loading(false); }
 }
 
-// ── Boards ─────────────────────────────────────────
-async function loadBoards() {
-  const data = await api('getBoards');
-  STATE.boards = data.boards || [];
-  const sel = document.getElementById('board-selector');
-  sel.innerHTML = '<option value="">— เลือก Board —</option>';
-  STATE.boards.forEach(b => {
-    const opt = document.createElement('option');
-    opt.value = b.id; opt.textContent = b.name;
-    sel.appendChild(opt);
+async function loadAll() {
+  const data = await api('getAllData');
+  S.projects   = data.projects   || [];
+  S.tasks      = data.tasks      || [];
+  S.milestones = data.milestones || [];
+  S.members    = data.members    || [];
+  updateSidebar();
+  if (S.currentProject) {
+    renderProjectDetail(S.currentProject);
+  } else {
+    renderProjectsGrid();
+  }
+  renderMyTasks();
+  renderMembersView();
+  $('sb-proj-count').textContent = S.projects.length;
+  const myT = S.tasks.filter(t=>t.assignee===S.user.email&&t.lane!=='done').length;
+  $('sb-mytasks-count').textContent = myT || '';
+}
+
+async function syncAll() {
+  toast('กำลัง Sync...','inf');
+  loading(true);
+  try { await loadAll(); toast('Sync สำเร็จ','ok'); }
+  catch(e) { toast('Sync ไม่สำเร็จ','err'); }
+  finally { loading(false); }
+}
+
+// ── Sidebar ───────────────────────────────────────────────────
+function updateSidebar() {
+  const list = $('sb-proj-list');
+  list.innerHTML = '';
+  S.projects.slice(0,12).forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'sb-item' + (S.currentProject===p.id ? ' on' : '');
+    d.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:${p.color||'#00d4a0'};flex-shrink:0"></span>${esc(p.name.slice(0,22))}`;
+    d.onclick = () => goProjectDetail(p.id);
+    list.appendChild(d);
   });
 }
 
-async function loadBoard(boardId) {
-  if (!boardId) return;
-  STATE.currentBoard = boardId;
-  sessionStorage.setItem('lastBoard', boardId);
-  document.getElementById('board-selector').value = boardId;
-
-  const canWrite = ['Admin','Manager','Member'].includes(STATE.currentUser.role);
-  document.getElementById('btn-add-story').style.display = canWrite ? 'block' : 'none';
-
-  setLoading(true);
-  try {
-    const data = await api('getBoardData', { boardId });
-    STATE.stories = data.stories || [];
-    STATE.epics   = data.epics   || [];
-    STATE.members = data.members || [];
-    populateAssigneeFilter();
-    populateEpicSelect();
-    populateAssigneeSelect();
-    renderCurrentView();
-  } catch(e) { toast('โหลด Board ไม่สำเร็จ: ' + e.message, 'error'); }
-  finally { setLoading(false); }
-}
-
-async function createBoard() {
-  const name = document.getElementById('new-board-name').value.trim();
-  const desc = document.getElementById('new-board-desc').value.trim();
-  if (!name) { toast('กรุณาใส่ชื่อ Board', 'error'); return; }
-  setLoading(true);
-  try {
-    await api('createBoard', { name, description: desc });
-    await loadBoards();
-    closeBoardModal();
-    toast(`สร้าง Board "${name}" สำเร็จ`, 'success');
-  } catch(e) { toast(e.message, 'error'); }
-  finally { setLoading(false); }
-}
-
-function showEmptyState() {
-  document.getElementById('view-board').style.display = 'none';
-  document.getElementById('empty-state').style.display = 'flex';
-}
-
-// ── Views ──────────────────────────────────────────
-function setView(v) {
-  STATE.currentView = v;
-  ['board','backlog','epics','members'].forEach(id => {
-    document.getElementById(`view-${id}`).style.display = 'none';
-    const nav = document.getElementById(`nav-${id}`);
-    if (nav) nav.classList.remove('active');
+function setSbActive(id) {
+  ['sb-projects','sb-mytasks','sb-members'].forEach(k => {
+    const el=$(k); if(el) el.classList.remove('on');
   });
-  document.getElementById(`view-${v}`).style.display = v === 'board' ? 'flex' : 'block';
-  const nav = document.getElementById(`nav-${v}`);
-  if (nav) nav.classList.add('active');
-  renderCurrentView();
+  if(id) { const el=$(id); if(el) el.classList.add('on'); }
 }
 
-function renderCurrentView() {
-  document.getElementById('empty-state').style.display = 'none';
-  switch (STATE.currentView) {
-    case 'board':   renderBoard();   break;
-    case 'backlog': renderBacklog(); break;
-    case 'epics':   renderEpics();   break;
-    case 'members': renderMembers(); break;
-  }
+// ── Views Navigation ──────────────────────────────────────────
+function showView(v) {
+  ['view-projects','view-project-detail','view-mytasks','view-members'].forEach(id => {
+    const el=$(id); if(el) el.classList.toggle('on', el.id===v);
+  });
 }
 
-// ── Kanban Board ───────────────────────────────────
-function getFilteredStories() {
-  const { type, priority, assignee, search } = STATE.filters;
-  return STATE.stories.filter(s => {
-    if (type     && s.type     !== type)     return false;
-    if (priority && s.priority !== priority) return false;
-    if (assignee && s.assignee !== assignee) return false;
-    if (search && !( (s.title||'').toLowerCase().includes(search.toLowerCase()) ||
-                     (s.id||'').toLowerCase().includes(search.toLowerCase()) )) return false;
+function goProjects() {
+  S.currentProject=null;
+  setSbActive('sb-projects');
+  updateSidebar();
+  setBreadcrumb([]);
+  renderProjectsGrid();
+  showView('view-projects');
+}
+
+function goMyTasks() {
+  S.currentProject=null;
+  setSbActive('sb-mytasks');
+  setBreadcrumb([]);
+  renderMyTasks();
+  showView('view-mytasks');
+}
+
+function goMembers() {
+  setSbActive('sb-members');
+  showView('view-members');
+}
+
+function goProjectDetail(projectId) {
+  S.currentProject = projectId;
+  S.detailTab = 'timeline';
+  setSbActive(null);
+  updateSidebar();
+  showView('view-project-detail');
+  renderProjectDetail(projectId);
+}
+
+function setBreadcrumb(crumbs) {
+  const bar = $('breadcrumb-bar');
+  if (!crumbs.length) { bar.innerHTML=''; return; }
+  bar.innerHTML = crumbs.map((c,i) =>
+    i < crumbs.length-1
+      ? `<span class="bc-link" onclick="${c.action}">${esc(c.label)}</span><span class="bc-sep">/</span>`
+      : `<span class="bc-current">${esc(c.label)}</span>`
+  ).join('');
+}
+
+// ── Projects Grid ─────────────────────────────────────────────
+function setProjFilter(f) {
+  S.projFilter = f;
+  document.querySelectorAll('[data-pf]').forEach(b => b.classList.toggle('on', b.dataset.pf===f));
+  renderProjectsGrid();
+}
+
+function renderProjectsGrid() {
+  const grid = $('proj-grid');
+  const empty = $('proj-empty');
+  const search = ($('search-inp').value||'').toLowerCase();
+
+  let projs = S.projects;
+  if (S.projFilter) projs = projs.filter(p=>p.status===S.projFilter);
+  if (search) projs = projs.filter(p=>(p.name||'').toLowerCase().includes(search)||(p.description||'').toLowerCase().includes(search));
+
+  grid.innerHTML='';
+  if (!projs.length) { empty.style.display='flex'; return; }
+  empty.style.display='none';
+
+  projs.forEach(p => {
+    const tasks = S.tasks.filter(t=>t.projectId===p.id);
+    const done  = tasks.filter(t=>t.lane==='done').length;
+    const pct   = tasks.length ? Math.round(done/tasks.length*100) : 0;
+    const milestones = S.milestones.filter(m=>m.projectId===p.id);
+    const color = p.color || '#00d4a0';
+
+    const card = document.createElement('div');
+    card.className='project-card';
+    card.style.setProperty('--pcolor', color);
+    card.style.cssText += `cursor:pointer`;
+    card.querySelector?.('.project-card::before');
+
+    const statusMap = {planning:'b-status-planning',active:'b-status-active',done:'b-status-done',paused:'b-status-paused'};
+
+    card.innerHTML = `
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${color};border-radius:14px 14px 0 0"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;padding-top:4px">
+        <div class="proj-name">${esc(p.name)}</div>
+        <span class="badge ${statusMap[p.status]||'b-status-planning'}" style="flex-shrink:0;margin-left:8px">${p.status||'planning'}</span>
+      </div>
+      <p class="proj-desc">${esc((p.description||'').slice(0,90))}${(p.description||'').length>90?'...':''}</p>
+      <div class="proj-progress-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px">
+          <span>${done}/${tasks.length} tasks</span>
+          <span style="font-weight:700;color:${pct===100?'var(--em)':'var(--text2)'}">${pct}%</span>
+        </div>
+        <div class="proj-progress-bar"><div class="proj-progress-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+      <div class="proj-meta">
+        <span class="proj-stat">📍 ${milestones.length} milestones</span>
+        ${p.endDate ? `<span class="proj-stat">🗓 ${fmtDate(p.endDate)}</span>` : ''}
+      </div>
+      <div class="proj-milestones-mini">
+        ${milestones.slice(0,8).map(m=>`<div class="ms-dot" style="background:${m.status==='done'?color:m.status==='inprogress'?'var(--info)':m.status==='overdue'?'var(--danger)':'var(--border2)'}" title="${esc(m.name)}"></div>`).join('')}
+      </div>`;
+    card.addEventListener('click', () => goProjectDetail(p.id));
+    if (['Admin','Manager'].includes(S.user?.role)) {
+      const editBtn = document.createElement('button');
+      editBtn.style.cssText='position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--text2);opacity:0;transition:opacity .15s;font-size:12px;padding:4px';
+      editBtn.textContent='✏️';
+      editBtn.onclick = e => { e.stopPropagation(); openProjectModal(p.id); };
+      card.style.position='relative';
+      card.appendChild(editBtn);
+      card.addEventListener('mouseenter',()=>editBtn.style.opacity='1');
+      card.addEventListener('mouseleave',()=>editBtn.style.opacity='0');
+    }
+    grid.appendChild(card);
+  });
+}
+
+// ── Project Detail ─────────────────────────────────────────────
+function renderProjectDetail(projectId) {
+  const p = S.projects.find(x=>x.id===projectId);
+  if (!p) { goProjects(); return; }
+
+  setBreadcrumb([
+    { label:'All Projects', action:'goProjects()' },
+    { label: p.name }
+  ]);
+
+  const tasks = S.tasks.filter(t=>t.projectId===projectId);
+  const done  = tasks.filter(t=>t.lane==='done').length;
+  const pct   = tasks.length ? Math.round(done/tasks.length*100) : 0;
+  const milestones = S.milestones.filter(m=>m.projectId===projectId);
+
+  const statusMap = {planning:'b-status-planning',active:'b-status-active',done:'b-status-done',paused:'b-status-paused'};
+
+  $('det-proj-name').textContent = p.name;
+  const sEl = $('det-proj-status');
+  sEl.className='badge '+statusMap[p.status];
+  sEl.textContent = p.status||'planning';
+  $('det-proj-desc').textContent = p.description||'';
+  $('det-pct').textContent = pct+'%';
+  $('det-pct-label').textContent = pct+'%';
+  $('det-total-tasks').textContent = tasks.length;
+  $('det-done-tasks').textContent  = done;
+  $('det-ms-count').textContent    = milestones.length;
+  $('det-progress-fill').style.width = pct+'%';
+
+  const canEdit = ['Admin','Manager','Member'].includes(S.user?.role);
+  $('btn-add-ms').style.display   = canEdit ? 'block' : 'none';
+  $('btn-add-task').style.display = canEdit ? 'block' : 'none';
+
+  // Populate milestone filter
+  const msSel = $('filter-ms');
+  msSel.innerHTML = '<option value="">Milestone: ทั้งหมด</option>';
+  milestones.forEach(m => {
+    const opt=document.createElement('option'); opt.value=m.id; opt.textContent=m.name;
+    msSel.appendChild(opt);
+  });
+
+  // Populate assignee filter & modal select
+  const asSel = $('filter-assignee-task');
+  const tfAs  = $('tf-assignee');
+  asSel.innerHTML='<option value="">Assignee: ทั้งหมด</option>';
+  tfAs.innerHTML='<option value="">— ไม่ระบุ —</option>';
+  S.members.forEach(m => {
+    [asSel, tfAs].forEach(sel => {
+      const opt=document.createElement('option'); opt.value=m.email;
+      opt.textContent=m.name||m.email; sel.appendChild(opt);
+    });
+  });
+
+  // Populate ms modal select
+  const tfMs = $('tf-ms');
+  tfMs.innerHTML='<option value="">— ไม่มี Milestone —</option>';
+  milestones.forEach(m => {
+    const opt=document.createElement('option'); opt.value=m.id; opt.textContent=m.name;
+    tfMs.appendChild(opt);
+  });
+
+  switchDetailTab(S.detailTab);
+}
+
+function switchDetailTab(tab) {
+  S.detailTab = tab;
+  $('tab-timeline').classList.toggle('on', tab==='timeline');
+  $('tab-board').classList.toggle('on', tab==='board');
+  $('detail-timeline').style.display = tab==='timeline' ? 'block' : 'none';
+  $('detail-board').style.display    = tab==='board'    ? 'block' : 'none';
+  if (tab==='timeline') renderTimeline();
+  if (tab==='board') renderTaskBoard();
+}
+
+// ── Milestone Timeline ─────────────────────────────────────────
+function renderTimeline() {
+  const list = $('timeline-list');
+  const empty= $('timeline-empty');
+  const p = S.projects.find(x=>x.id===S.currentProject);
+  const color = p?.color || '#00d4a0';
+  list.innerHTML='';
+
+  const milestones = S.milestones
+    .filter(m=>m.projectId===S.currentProject)
+    .sort((a,b)=> (a.targetDate||'').localeCompare(b.targetDate||''));
+
+  if (!milestones.length) { empty.style.display='flex'; return; }
+  empty.style.display='none';
+
+  const canEdit = ['Admin','Manager','Member'].includes(S.user?.role);
+
+  milestones.forEach((ms, idx) => {
+    const msTasks = S.tasks.filter(t=>t.milestoneId===ms.id);
+    const msDone  = msTasks.filter(t=>t.lane==='done').length;
+    const msPct   = msTasks.length ? Math.round(msDone/msTasks.length*100) : (ms.status==='done'?100:0);
+    const overdue = ms.status!=='done' && ms.targetDate && new Date(ms.targetDate) < new Date();
+    const effStatus = overdue ? 'overdue' : ms.status;
+
+    const iconCls = {done:'done',inprogress:'inprogress',overdue:'overdue',pending:'pending'}[effStatus]||'pending';
+
+    const row = document.createElement('div');
+    row.className='milestone-row';
+    row.innerHTML = `
+      <div class="ms-icon ${iconCls}">${MS_EMOJI[effStatus]||'⏳'}</div>
+      <div class="ms-body" style="${effStatus==='done'?'border-color:rgba(0,212,160,.25)':effStatus==='overdue'?'border-color:rgba(240,64,96,.2)':effStatus==='inprogress'?'border-color:rgba(59,158,255,.2)':''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2px">
+          <div class="ms-name">${esc(ms.name)}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:10px">
+            ${msTasks.length ? `<span style="font-size:11px;color:var(--text2)">${msDone}/${msTasks.length}</span>` : ''}
+            <span style="font-size:12px;font-weight:700;color:${msPct===100?'var(--em)':'var(--text2)'}">${msPct}%</span>
+            ${canEdit ? `<button onclick="openMilestoneModal('${ms.id}')" style="background:none;border:none;cursor:pointer;color:var(--text2);font-size:11px;padding:2px 6px;border-radius:5px;background:var(--surface2)">✏️</button>` : ''}
+          </div>
+        </div>
+        <div class="ms-date">${ms.targetDate ? '🗓 เป้าหมาย: '+fmtDate(ms.targetDate) : ''}${overdue?' ⚠️ เลยกำหนด':''}</div>
+        ${ms.description ? `<p style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.5">${esc(ms.description)}</p>` : ''}
+        <div class="ms-progress-bar"><div class="ms-progress-fill" style="width:${msPct}%;background:${msPct===100?'var(--em)':'var(--info)'}"></div></div>
+        ${msTasks.length ? `<div class="ms-tasks-preview">
+          ${msTasks.slice(0,6).map(t=>`<span class="ms-task-chip ${t.lane==='done'?'done':''}" onclick="openTaskModal_edit('${t.id}')" style="cursor:pointer" title="${esc(t.title)}">${esc((t.title||'').slice(0,22))}${(t.title||'').length>22?'...':''}</span>`).join('')}
+          ${msTasks.length>6?`<span class="ms-task-chip">+${msTasks.length-6} more</span>`:''}
+        </div>` : `<p style="font-size:11px;color:var(--text3);margin-top:8px">ยังไม่มี Task ใน milestone นี้</p>`}
+      </div>`;
+    list.appendChild(row);
+
+    // Connector line between milestones
+    if (idx < milestones.length-1) {
+      const conn = document.createElement('div');
+      conn.style.cssText='height:12px;margin-left:18px;width:2px;background:var(--border2)';
+      list.appendChild(conn);
+    }
+  });
+}
+
+// ── Task Kanban Board ──────────────────────────────────────────
+function setTaskFilter(key, val) {
+  if (S.taskFilters[key]===val) S.taskFilters[key]='';
+  else S.taskFilters[key]=val;
+  document.querySelectorAll('[data-tf-type]').forEach(b => b.classList.toggle('on', b.dataset.tfType===S.taskFilters.type));
+  renderTaskBoard();
+}
+
+function getFilteredTasks() {
+  const { type, ms, assignee, search } = S.taskFilters;
+  const msSel  = $('filter-ms')?.value || '';
+  const asSel  = $('filter-assignee-task')?.value || '';
+  return S.tasks.filter(t => {
+    if (t.projectId !== S.currentProject) return false;
+    if (type && t.type !== type) return false;
+    if (msSel && t.milestoneId !== msSel) return false;
+    if (asSel && t.assignee !== asSel) return false;
+    if (search && !(t.title||'').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 }
 
-function renderBoard() {
-  const board = document.getElementById('view-board');
-  board.style.display = 'flex';
-  board.innerHTML = '';
-
-  const filtered = getFilteredStories();
+function renderTaskBoard() {
+  const area = $('task-board-area');
+  area.innerHTML='';
+  const filtered = getFilteredTasks();
 
   LANES.forEach(lane => {
-    const stories = filtered.filter(s => s.lane === lane.id);
+    const laneTasks = filtered.filter(t=>t.lane===lane.id)
+      .sort((a,b) => {const pm={P0:0,P1:1,P2:2,P3:3};return (pm[a.priority]||2)-(pm[b.priority]||2);});
+
     const col = document.createElement('div');
-    col.className = `lane ${lane.cls}`;
-    col.dataset.lane = lane.id;
+    col.className=`lane ${lane.cls}`;
+    col.dataset.lane=lane.id;
 
-    const pts = stories.reduce((a, s) => a + (parseInt(s.points) || 0), 0);
-    col.innerHTML = `
-      <div class="lane-header">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:13px;">${lane.emoji}</span>
-          <span style="font-size:13px;font-weight:700;color:#e2e8f0;">${lane.label}</span>
-          <span style="font-size:11px;background:#1e2a3a;padding:2px 8px;border-radius:20px;color:#94a3b8;font-family:'Inter',monospace;">${stories.length}</span>
+    const pts = laneTasks.reduce((a,t)=>a+(parseInt(t.points)||0),0);
+    col.innerHTML=`
+      <div class="lane-head">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="font-size:12px">${lane.emoji}</span>
+          <span style="font-size:12px;font-weight:700;color:var(--text)">${lane.label}</span>
+          <span style="font-size:10px;background:var(--surface2);padding:1px 7px;border-radius:20px;color:var(--text2);font-family:'Inter',monospace">${laneTasks.length}</span>
         </div>
-        <span style="font-size:10px;color:#4b6282;font-family:'Inter',monospace;">${pts}pts</span>
+        <span style="font-size:10px;color:var(--text3);font-family:'Inter',monospace">${pts}pts</span>
       </div>
-      <div class="lane-body" id="lane-${lane.id}"></div>
-      <div class="lane-footer">
-        ${canEdit() ? `<button onclick="openNewStoryModal('${lane.id}')" style="width:100%;padding:6px;background:transparent;border:1px dashed #1e2a3a;border-radius:7px;color:#4b6282;cursor:pointer;font-size:12px;font-family:'Sarabun',sans-serif;transition:all .15s;" onmouseover="this.style.borderColor='#2d4060';this.style.color='#94a3b8'" onmouseout="this.style.borderColor='#1e2a3a';this.style.color='#4b6282'">+ เพิ่ม Story</button>` : ''}
+      <div class="lane-body" id="lb-${lane.id}"></div>
+      <div class="lane-foot">
+        ${canWriteTask()?`<button class="lane-add-btn" onclick="openTaskModal('${lane.id}')">+ Task</button>`:''}
       </div>`;
-    board.appendChild(col);
+    area.appendChild(col);
 
-    const laneBody = col.querySelector('.lane-body');
-    stories.sort((a,b) => {
-      const pmap = {P0:0,P1:1,P2:2,P3:3};
-      return (pmap[a.priority]||2) - (pmap[b.priority]||2);
-    }).forEach(s => laneBody.appendChild(createCard(s)));
-
-    setupDropZone(laneBody, lane.id);
+    const body = col.querySelector('.lane-body');
+    laneTasks.forEach(t => body.appendChild(buildTaskCard(t)));
+    setupDropzone(body, lane.id);
   });
 }
 
-function canEdit() {
-  return ['Admin','Manager','Member'].includes(STATE.currentUser?.role);
+function canWriteTask() {
+  return ['Admin','Manager','Member'].includes(S.user?.role);
 }
 
-function createCard(story) {
+function buildTaskCard(task) {
   const card = document.createElement('div');
-  card.className = 'story-card';
-  card.dataset.id = story.id;
-  card.draggable = canEdit();
+  card.className='task-card';
+  card.dataset.id=task.id;
+  card.draggable=canWriteTask();
 
-  const epic = STATE.epics.find(e => e.id === story.epicId);
-  const member = STATE.members.find(m => m.email === story.assignee);
-  const memberName = member ? (member.name || member.email) : '';
+  const ms = S.milestones.find(m=>m.id===task.milestoneId);
+  const member = S.members.find(m=>m.email===task.assignee);
+  const memberName = member ? (member.name||member.email) : '';
+  const overdue = task.dueDate && new Date(task.dueDate)<new Date() && task.lane!=='done';
 
-  const overdue = story.dueDate && new Date(story.dueDate) < new Date() && story.lane !== 'done';
-
-  card.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <span class="story-id">${story.id}</span>
-      <div style="display:flex;align-items:center;gap:4px;">
-        <span class="badge badge-${story.type}">${story.type}</span>
-        <span class="badge badge-${(story.priority||'P2').toLowerCase()}">${story.priority||'P2'}</span>
+  card.innerHTML=`
+    <div class="tc-top">
+      <span class="tc-id">${task.id}</span>
+      <div style="display:flex;gap:4px">
+        <span class="badge b-${task.type}">${task.type}</span>
+        <span class="badge b-${task.priority||'P2'}">${task.priority||'P2'}</span>
       </div>
     </div>
-    ${epic ? `<div class="epic-tag" style="margin-bottom:4px;">⚡ ${epic.name}</div>` : ''}
-    <div class="story-title">${escHtml(story.title)}</div>
-    <div class="story-meta">
-      ${story.points > 0 ? `<div class="pts-chip">${story.points}</div>` : ''}
-      ${memberName ? `<div class="avatar" style="background:${avatarColor(memberName)};color:#0a0e1a;" title="${memberName}">${avatarInitials(memberName)}</div>` : ''}
-      ${story.dueDate ? `<span style="font-size:10px;color:${overdue ? '#ef4444' : '#4b6282'};">${overdue ? '⚠️ ' : ''}${formatDate(story.dueDate)}</span>` : ''}
-      ${story.commentCount > 0 ? `<span style="font-size:10px;color:#4b6282;margin-left:auto;">💬 ${story.commentCount}</span>` : ''}
+    <div class="tc-title">${esc(task.title)}</div>
+    <div class="tc-meta">
+      ${task.points>0?`<div style="width:20px;height:20px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text2);font-family:'Inter',monospace">${task.points}</div>`:''}
+      ${memberName?`<div class="av av-sm" style="background:${avColor(memberName)};color:#080c14" title="${memberName}">${initials(memberName)}</div>`:''}
+      ${ms?`<span class="tc-ms">📍 ${esc(ms.name.slice(0,18))}</span>`:''}
+      ${task.dueDate?`<span style="font-size:10px;color:${overdue?'var(--danger)':'var(--text2)'};">${overdue?'⚠️ ':'' }${fmtDate(task.dueDate)}</span>`:''}
+      ${task.commentCount>0?`<span style="font-size:10px;color:var(--text3);margin-left:auto">💬${task.commentCount}</span>`:''}
     </div>`;
 
-  card.addEventListener('click', () => openStoryModal(story.id));
-  if (canEdit()) setupDrag(card, story.id, story.lane);
+  card.addEventListener('click',()=>openTaskModal_edit(task.id));
+  if (canWriteTask()) setupDrag(card, task.id, task.lane);
   return card;
 }
 
-function escHtml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ── Drag & Drop ────────────────────────────────────
-function setupDrag(card, storyId, lane) {
-  card.addEventListener('dragstart', e => {
-    STATE.dragCard = storyId;
-    STATE.dragSourceLane = lane;
+// ── Drag & Drop ────────────────────────────────────────────────
+function setupDrag(card, taskId, lane) {
+  card.addEventListener('dragstart',e=>{
+    S.dragTaskId=taskId; S.dragLane=lane;
     card.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed='move';
   });
-  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  card.addEventListener('dragend',()=>card.classList.remove('dragging'));
 }
 
-function setupDropZone(el, laneId) {
-  el.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    el.querySelectorAll('.story-card').forEach(c => c.classList.remove('drag-over'));
-    // Find nearest card
-    const target = [...el.querySelectorAll('.story-card')].find(c => {
-      const rect = c.getBoundingClientRect();
-      return e.clientY < rect.top + rect.height / 2;
+function setupDropzone(el, laneId) {
+  el.addEventListener('dragover',e=>{
+    e.preventDefault(); e.dataTransfer.dropEffect='move';
+    el.querySelectorAll('.task-card').forEach(c=>c.classList.remove('drag-over-top'));
+    const target=[...el.querySelectorAll('.task-card')].find(c=>{
+      const r=c.getBoundingClientRect(); return e.clientY<r.top+r.height/2;
     });
-    if (target) target.classList.add('drag-over');
+    if(target) target.classList.add('drag-over-top');
   });
-  el.addEventListener('dragleave', () => {
-    el.querySelectorAll('.story-card').forEach(c => c.classList.remove('drag-over'));
-  });
-  el.addEventListener('drop', async e => {
+  el.addEventListener('dragleave',()=>el.querySelectorAll('.task-card').forEach(c=>c.classList.remove('drag-over-top')));
+  el.addEventListener('drop',async e=>{
     e.preventDefault();
-    el.querySelectorAll('.story-card').forEach(c => c.classList.remove('drag-over'));
-    if (!STATE.dragCard || STATE.dragSourceLane === laneId) return;
-
-    const story = STATE.stories.find(s => s.id === STATE.dragCard);
-    if (!story) return;
-    story.lane = laneId;
-
-    renderBoard();
-    setLoading(true);
+    el.querySelectorAll('.task-card').forEach(c=>c.classList.remove('drag-over-top'));
+    if (!S.dragTaskId || S.dragLane===laneId) return;
+    const task=S.tasks.find(t=>t.id===S.dragTaskId);
+    if (!task) return;
+    const prev=task.lane;
+    task.lane=laneId;
+    renderTaskBoard();
+    updateProjectStats();
+    loading(true);
     try {
-      await api('updateStory', { boardId: STATE.currentBoard, storyId: STATE.dragCard, lane: laneId });
-      toast(`ย้าย "${story.title.slice(0,30)}" → ${LANES.find(l=>l.id===laneId)?.label}`, 'success');
+      await api('updateTask',{taskId:task.id, lane:laneId});
+      toast(`ย้าย → ${LANES.find(l=>l.id===laneId)?.label}`,'ok');
     } catch(e) {
-      story.lane = STATE.dragSourceLane;
-      renderBoard();
-      toast('ย้าย Story ไม่สำเร็จ', 'error');
-    } finally { setLoading(false); }
+      task.lane=prev; renderTaskBoard(); toast('ย้าย Task ไม่สำเร็จ','err');
+    } finally { loading(false); }
   });
 }
 
-// ── Backlog View ───────────────────────────────────
-function renderBacklog() {
-  const container = document.getElementById('view-backlog');
-  const filtered = getFilteredStories();
-
-  const grouped = {};
-  LANES.forEach(l => grouped[l.id] = []);
-  filtered.forEach(s => { if (grouped[s.lane]) grouped[s.lane].push(s); });
-
-  container.innerHTML = `<h2 style="font-size:16px;font-weight:700;color:#e2e8f0;margin-bottom:20px;">Backlog — รายการทั้งหมด (${filtered.length} stories)</h2>`;
-
-  LANES.forEach(lane => {
-    const stories = grouped[lane.id];
-    if (!stories.length) return;
-    const section = document.createElement('div');
-    section.style.marginBottom = '24px';
-    section.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <span>${lane.emoji}</span>
-        <span style="font-size:13px;font-weight:700;color:#94a3b8;">${lane.label}</span>
-        <span style="font-size:11px;background:#1e2a3a;padding:2px 8px;border-radius:20px;color:#94a3b8;">${stories.length}</span>
-      </div>
-      <div style="border:1px solid #1e2a3a;border-radius:10px;overflow:hidden;">
-        ${stories.map(s => `
-          <div onclick="openStoryModal('${s.id}')" style="display:grid;grid-template-columns:100px 1fr 100px 80px 80px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #1e2a3a;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#111827'" onmouseout="this.style.background='transparent'">
-            <span style="font-family:'Inter',monospace;font-size:11px;color:#4b6282;">${s.id}</span>
-            <span style="font-size:13px;font-weight:500;color:#e2e8f0;">${escHtml(s.title)}</span>
-            <span class="badge badge-${s.type}" style="justify-self:start;">${s.type}</span>
-            <span class="badge badge-${(s.priority||'P2').toLowerCase()}" style="justify-self:start;">${s.priority}</span>
-            <span style="font-size:11px;color:#4b6282;">${formatDate(s.dueDate)}</span>
-          </div>`).join('')}
-      </div>`;
-    container.appendChild(section);
-  });
+function updateProjectStats() {
+  if (!S.currentProject) return;
+  const tasks = S.tasks.filter(t=>t.projectId===S.currentProject);
+  const done  = tasks.filter(t=>t.lane==='done').length;
+  const pct   = tasks.length ? Math.round(done/tasks.length*100) : 0;
+  $('det-pct').textContent=$('det-pct-label').textContent=pct+'%';
+  $('det-total-tasks').textContent=tasks.length;
+  $('det-done-tasks').textContent=done;
+  $('det-progress-fill').style.width=pct+'%';
 }
 
-// ── Epics View ─────────────────────────────────────
-function renderEpics() {
-  const container = document.getElementById('view-epics');
-  container.innerHTML = `<h2 style="font-size:16px;font-weight:700;color:#e2e8f0;margin-bottom:20px;">Epics (${STATE.epics.length})</h2>`;
+// ── My Tasks View ──────────────────────────────────────────────
+function renderMyTasks() {
+  const list = $('mytasks-list');
+  list.innerHTML='';
+  const myTasks = S.tasks.filter(t=>t.assignee===S.user?.email)
+    .sort((a,b)=>{const pm={P0:0,P1:1,P2:2,P3:3};return (pm[a.priority]||2)-(pm[b.priority]||2);});
 
-  if (!STATE.epics.length) {
-    container.innerHTML += `<p style="color:#4b6282;font-size:13px;">ยังไม่มี Epic — สร้าง Epic ผ่าน Google Sheets (แผ่น Epics)</p>`;
+  if (!myTasks.length) {
+    list.innerHTML=`<div style="color:var(--text2);font-size:13px;padding:20px 0">ยังไม่มีงานที่ assign ให้คุณ 🎉</div>`;
     return;
   }
 
-  STATE.epics.forEach(epic => {
-    const epicStories = STATE.stories.filter(s => s.epicId === epic.id);
-    const doneCount   = epicStories.filter(s => s.lane === 'done').length;
-    const progress    = epicStories.length ? Math.round(doneCount / epicStories.length * 100) : 0;
-    const pts         = epicStories.reduce((a,s) => a + (parseInt(s.points)||0), 0);
+  // Group by project
+  const grouped = {};
+  myTasks.forEach(t => {
+    if (!grouped[t.projectId]) grouped[t.projectId]=[];
+    grouped[t.projectId].push(t);
+  });
 
-    const card = document.createElement('div');
-    card.style.cssText = 'background:#111827;border:1px solid #1e2a3a;border-radius:12px;padding:20px;margin-bottom:16px;';
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:18px;">⚡</span>
-          <span style="font-size:15px;font-weight:700;color:#e2e8f0;">${escHtml(epic.name)}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:16px;">
-          <span style="font-size:12px;color:#4b6282;">${pts} pts</span>
-          <span style="font-size:12px;color:#4b6282;">${doneCount}/${epicStories.length} stories</span>
-          <span style="font-size:14px;font-weight:700;color:${progress===100?'#00c896':'#94a3b8'};">${progress}%</span>
-        </div>
+  Object.entries(grouped).forEach(([projId, tasks]) => {
+    const proj = S.projects.find(p=>p.id===projId);
+    const sec  = document.createElement('div');
+    sec.style.marginBottom='20px';
+    sec.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${proj?.color||'var(--text3)'}"></div>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;text-decoration:underline" onclick="goProjectDetail('${projId}')">${esc(proj?.name||projId)}</span>
+        <span style="font-size:11px;color:var(--text3)">${tasks.length} tasks</span>
       </div>
-      <div class="progress-bar" style="margin-bottom:12px;">
-        <div class="progress-fill" style="width:${progress}%;"></div>
-      </div>
-      ${epic.description ? `<p style="font-size:12px;color:#4b6282;margin-bottom:12px;">${escHtml(epic.description)}</p>` : ''}
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${epicStories.slice(0,6).map(s => `
-          <span onclick="openStoryModal('${s.id}')" style="padding:3px 10px;border-radius:20px;font-size:11px;background:#1e2a3a;color:#94a3b8;cursor:pointer;border:1px solid #243447;">${escHtml(s.title.slice(0,30))}${s.title.length>30?'...':''}</span>`).join('')}
-        ${epicStories.length > 6 ? `<span style="padding:3px 10px;border-radius:20px;font-size:11px;background:#1e2a3a;color:#4b6282;">+${epicStories.length-6} more</span>` : ''}
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        ${tasks.map(t=>{
+          const laneInfo=LANES.find(l=>l.id===t.lane)||LANES[0];
+          const overdue=t.dueDate&&new Date(t.dueDate)<new Date()&&t.lane!=='done';
+          return `<div onclick="goProjectDetail('${projId}')" style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+            <span class="badge b-${t.type}" style="font-size:9px">${t.type}</span>
+            <span style="font-size:13px;font-weight:500;color:var(--text)">${esc(t.title)}</span>
+            <span class="badge b-${t.priority||'P2'}" style="font-size:9px">${t.priority||'P2'}</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:var(--surface2);color:var(--text2)">${laneInfo.emoji} ${laneInfo.label}</span>
+            <span style="font-size:10px;color:${overdue?'var(--danger)':'var(--text2)'}">${t.dueDate?fmtDate(t.dueDate):''}</span>
+          </div>`;
+        }).join('')}
       </div>`;
-    container.appendChild(card);
+    list.appendChild(sec);
   });
 }
 
-// ── Members View ───────────────────────────────────
-function renderMembers() {
-  const container = document.getElementById('view-members');
-  container.innerHTML = `<h2 style="font-size:16px;font-weight:700;color:#e2e8f0;margin-bottom:20px;">สมาชิก & สิทธิ์การเข้าถึง (${STATE.members.length} คน)</h2>`;
-
-  const table = document.createElement('div');
-  table.style.cssText = 'background:#111827;border:1px solid #1e2a3a;border-radius:12px;overflow:hidden;';
-  table.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 180px 120px 100px;gap:0;padding:12px 20px;border-bottom:1px solid #1e2a3a;background:#0d1321;">
-      <span style="font-size:11px;font-weight:700;color:#4b6282;text-transform:uppercase;letter-spacing:.06em;">ชื่อ / อีเมล</span>
-      <span style="font-size:11px;font-weight:700;color:#4b6282;text-transform:uppercase;letter-spacing:.06em;">อีเมล</span>
-      <span style="font-size:11px;font-weight:700;color:#4b6282;text-transform:uppercase;letter-spacing:.06em;">Role</span>
-      <span style="font-size:11px;font-weight:700;color:#4b6282;text-transform:uppercase;letter-spacing:.06em;">Stories</span>
-    </div>`;
-
-  STATE.members.forEach(m => {
-    const storyCount = STATE.stories.filter(s => s.assignee === m.email).length;
-    const row = document.createElement('div');
-    row.style.cssText = 'display:grid;grid-template-columns:1fr 180px 120px 100px;gap:0;padding:14px 20px;border-bottom:1px solid #1e2a3a;align-items:center;';
-    row.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="avatar" style="background:${avatarColor(m.name||m.email)};color:#0a0e1a;width:28px;height:28px;font-size:10px;">${avatarInitials(m.name||m.email)}</div>
-        <span style="font-size:13px;font-weight:500;color:#e2e8f0;">${escHtml(m.name||m.email)}</span>
+// ── Members View ───────────────────────────────────────────────
+function renderMembersView() {
+  const tbl=$('members-table');
+  if (!tbl) return;
+  const roleColors={Admin:'var(--em)',Manager:'var(--violet)',Member:'var(--info)',Viewer:'var(--text2)'};
+  tbl.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 200px 100px;gap:0;padding:10px 18px;background:var(--surface2);border-bottom:1px solid var(--border)">
+        <span style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em">ชื่อ / อีเมล</span>
+        <span style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em">อีเมล</span>
+        <span style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em">Role</span>
       </div>
-      <span style="font-size:12px;color:#4b6282;">${escHtml(m.email)}</span>
-      <span class="badge" style="background:${ROLE_COLORS[m.role]||'#94a3b8'}20;color:${ROLE_COLORS[m.role]||'#94a3b8'};justify-self:start;">${m.role}</span>
-      <span style="font-size:12px;color:#94a3b8;">${storyCount}</span>`;
-    table.appendChild(row);
-  });
-
-  container.appendChild(table);
-  container.innerHTML += `<p style="font-size:12px;color:#2d4060;margin-top:16px;">💡 จัดการสมาชิกและสิทธิ์ได้ใน Google Sheets → แผ่น "Members"</p>`;
+      ${S.members.map(m=>`
+        <div style="display:grid;grid-template-columns:1fr 200px 100px;gap:0;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center">
+          <div style="display:flex;align-items:center;gap:9px">
+            <div class="av av-sm" style="background:${avColor(m.name||m.email)};color:#080c14">${initials(m.name||m.email)}</div>
+            <span style="font-size:13px;font-weight:500;color:var(--text)">${esc(m.name||m.email)}</span>
+          </div>
+          <span style="font-size:11px;color:var(--text2)">${esc(m.email)}</span>
+          <span class="badge" style="background:${roleColors[m.role]||'var(--text2)'}20;color:${roleColors[m.role]||'var(--text2)'}">${m.role}</span>
+        </div>`).join('')}
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin-top:12px">💡 จัดการใน Google Sheets → แผ่น "Users"</p>`;
 }
 
-// ── Story Modal ────────────────────────────────────
-function openNewStoryModal(defaultLane = 'current') {
-  STATE.editingStoryId = null;
-  document.getElementById('modal-mode-label').textContent = 'สร้าง Story ใหม่';
-  document.getElementById('modal-story-id').textContent = '';
-  document.getElementById('modal-title').value = '';
-  document.getElementById('modal-desc').value = '';
-  document.getElementById('modal-type').value = 'feature';
-  document.getElementById('modal-priority').value = 'P2';
-  document.getElementById('modal-lane').value = defaultLane;
-  document.getElementById('modal-points').value = '0';
-  document.getElementById('modal-assignee').value = '';
-  document.getElementById('modal-epic').value = '';
-  document.getElementById('modal-due').value = '';
-  document.getElementById('modal-delete-btn').style.display = 'none';
-  document.getElementById('modal-comments-section').style.display = 'none';
-  document.getElementById('story-modal').style.display = 'flex';
-}
+// ── Project Modal ──────────────────────────────────────────────
+function openProjectModal(id=null) {
+  S.editingProjectId=id;
+  $('m-proj-title').textContent = id ? 'แก้ไข Project' : 'สร้าง Project ใหม่';
+  $('m-proj-del').style.display = id&&['Admin'].includes(S.user?.role) ? 'block' : 'none';
 
-function openStoryModal(storyId) {
-  const story = STATE.stories.find(s => s.id === storyId);
-  if (!story) return;
-  STATE.editingStoryId = storyId;
-  document.getElementById('modal-mode-label').textContent = 'แก้ไข Story';
-  document.getElementById('modal-story-id').textContent = story.id;
-  document.getElementById('modal-title').value = story.title || '';
-  document.getElementById('modal-desc').value = story.description || '';
-  document.getElementById('modal-type').value = story.type || 'feature';
-  document.getElementById('modal-priority').value = story.priority || 'P2';
-  document.getElementById('modal-lane').value = story.lane || 'current';
-  document.getElementById('modal-points').value = story.points || '0';
-  document.getElementById('modal-assignee').value = story.assignee || '';
-  document.getElementById('modal-epic').value = story.epicId || '';
-  document.getElementById('modal-due').value = story.dueDate || '';
-
-  const canDel = ['Admin','Manager'].includes(STATE.currentUser?.role);
-  document.getElementById('modal-delete-btn').style.display = canDel ? 'block' : 'none';
-  document.getElementById('modal-comments-section').style.display = 'block';
-  renderComments(story.comments || []);
-  document.getElementById('story-modal').style.display = 'flex';
-}
-
-function closeStoryModal() {
-  document.getElementById('story-modal').style.display = 'none';
-  STATE.editingStoryId = null;
-}
-
-function renderComments(comments) {
-  const list = document.getElementById('modal-comments-list');
-  list.innerHTML = '';
-  (comments || []).forEach(c => {
-    const item = document.createElement('div');
-    item.style.cssText = 'background:#0d1321;border-radius:8px;padding:8px 12px;';
-    item.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-        <div class="avatar" style="background:${avatarColor(c.author)};color:#0a0e1a;width:18px;height:18px;font-size:8px;">${avatarInitials(c.author)}</div>
-        <span style="font-size:11px;font-weight:600;color:#94a3b8;">${escHtml(c.author)}</span>
-        <span style="font-size:10px;color:#4b6282;">${formatDate(c.ts)}</span>
-      </div>
-      <p style="font-size:12px;color:#e2e8f0;line-height:1.5;">${escHtml(c.text)}</p>`;
-    list.appendChild(item);
-  });
-}
-
-async function addComment() {
-  const input = document.getElementById('modal-comment-input');
-  const text = input.value.trim();
-  if (!text || !STATE.editingStoryId) return;
-  input.value = '';
-  const comment = { author: STATE.currentUser.name || STATE.currentUser.email, text, ts: new Date().toISOString() };
-  try {
-    await api('addComment', { boardId: STATE.currentBoard, storyId: STATE.editingStoryId, comment });
-    const story = STATE.stories.find(s => s.id === STATE.editingStoryId);
-    if (story) { story.comments = [...(story.comments||[]), comment]; story.commentCount = (story.commentCount||0)+1; }
-    renderComments(story?.comments || []);
-    toast('เพิ่ม Comment สำเร็จ', 'success');
-  } catch(e) { toast('เกิดข้อผิดพลาด', 'error'); }
-}
-
-async function saveStory() {
-  const title = document.getElementById('modal-title').value.trim();
-  if (!title) { toast('กรุณาใส่ชื่อ Story', 'error'); return; }
-
-  const payload = {
-    boardId:     STATE.currentBoard,
-    title,
-    description: document.getElementById('modal-desc').value.trim(),
-    type:        document.getElementById('modal-type').value,
-    priority:    document.getElementById('modal-priority').value,
-    lane:        document.getElementById('modal-lane').value,
-    points:      parseInt(document.getElementById('modal-points').value) || 0,
-    assignee:    document.getElementById('modal-assignee').value,
-    epicId:      document.getElementById('modal-epic').value,
-    dueDate:     document.getElementById('modal-due').value,
-  };
-
-  const btn = document.getElementById('modal-save-btn');
-  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-  setLoading(true);
-
-  try {
-    if (STATE.editingStoryId) {
-      payload.storyId = STATE.editingStoryId;
-      const data = await api('updateStory', payload);
-      const idx = STATE.stories.findIndex(s => s.id === STATE.editingStoryId);
-      if (idx !== -1) STATE.stories[idx] = { ...STATE.stories[idx], ...payload };
-      toast('บันทึกสำเร็จ', 'success');
-    } else {
-      const data = await api('createStory', payload);
-      STATE.stories.push(data.story);
-      toast('สร้าง Story สำเร็จ', 'success');
-    }
-    closeStoryModal();
-    renderCurrentView();
-  } catch(e) { toast(e.message || 'เกิดข้อผิดพลาด', 'error'); }
-  finally { btn.disabled = false; btn.textContent = 'บันทึก'; setLoading(false); }
-}
-
-async function deleteStory() {
-  if (!STATE.editingStoryId) return;
-  if (!confirm('ยืนยันการลบ Story นี้?')) return;
-  setLoading(true);
-  try {
-    await api('deleteStory', { boardId: STATE.currentBoard, storyId: STATE.editingStoryId });
-    STATE.stories = STATE.stories.filter(s => s.id !== STATE.editingStoryId);
-    closeStoryModal();
-    renderCurrentView();
-    toast('ลบ Story สำเร็จ', 'success');
-  } catch(e) { toast(e.message, 'error'); }
-  finally { setLoading(false); }
-}
-
-// ── Filters ────────────────────────────────────────
-function setFilter(key, val) {
-  // Toggle
-  if (STATE.filters[key] === val) STATE.filters[key] = '';
-  else STATE.filters[key] = val;
-  filterCards();
-  // Update buttons
-  document.querySelectorAll(`[data-filter-${key}]`).forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute(`data-filter-${key}`) === STATE.filters[key]);
-  });
-}
-
-function filterCards() {
-  STATE.filters.search   = document.getElementById('search-input').value.trim();
-  STATE.filters.assignee = document.getElementById('filter-assignee').value;
-  renderCurrentView();
-}
-
-function populateAssigneeFilter() {
-  const sel = document.getElementById('filter-assignee');
-  sel.innerHTML = '<option value="">Assignee: ทั้งหมด</option>';
-  STATE.members.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m.email;
-    opt.textContent = m.name || m.email;
-    sel.appendChild(opt);
-  });
-}
-
-function populateAssigneeSelect() {
-  const sel = document.getElementById('modal-assignee');
-  sel.innerHTML = '<option value="">— ไม่ระบุ —</option>';
-  STATE.members.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m.email;
-    opt.textContent = m.name || m.email;
-    sel.appendChild(opt);
-  });
-}
-
-function populateEpicSelect() {
-  const sel = document.getElementById('modal-epic');
-  sel.innerHTML = '<option value="">— ไม่มี Epic —</option>';
-  STATE.epics.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.id;
-    opt.textContent = e.name;
-    sel.appendChild(opt);
-  });
-}
-
-// ── Profile ────────────────────────────────────────
-function openMyProfileModal() {
-  const u = STATE.currentUser;
-  document.getElementById('profile-avatar-big').textContent = avatarInitials(u.name||u.email);
-  document.getElementById('profile-avatar-big').style.background = avatarColor(u.name||u.email);
-  document.getElementById('profile-name-big').textContent = u.name || u.email;
-  document.getElementById('profile-email-big').textContent = u.email;
-  const roleEl = document.getElementById('profile-role-big');
-  roleEl.textContent = u.role;
-  roleEl.style.background = `${ROLE_COLORS[u.role]||'#94a3b8'}20`;
-  roleEl.style.color = ROLE_COLORS[u.role] || '#94a3b8';
-  document.getElementById('prof-old-pw').value = '';
-  document.getElementById('prof-new-pw').value = '';
-  document.getElementById('profile-modal').style.display = 'flex';
-}
-
-// ── Modals helpers ─────────────────────────────────
-function openNewBoardModal() {
-  document.getElementById('new-board-name').value = '';
-  document.getElementById('new-board-desc').value = '';
-  document.getElementById('board-modal').style.display = 'flex';
-}
-function closeBoardModal() {
-  document.getElementById('board-modal').style.display = 'none';
-}
-
-// ── Sync ───────────────────────────────────────────
-async function syncData() {
-  if (!STATE.currentBoard) { toast('เลือก Board ก่อน', 'info'); return; }
-  toast('กำลัง Sync ข้อมูล...', 'info');
-  await loadBoard(STATE.currentBoard);
-  toast('Sync สำเร็จ', 'success');
-}
-
-// ── Bootstrap ─────────────────────────────────────
-(function init() {
-  if (restoreSession()) {
-    initApp();
+  if (id) {
+    const p=S.projects.find(x=>x.id===id)||{};
+    $('pf-name').value=p.name||''; $('pf-desc').value=p.description||'';
+    $('pf-status').value=p.status||'planning';
+    $('pf-start').value=p.startDate||''; $('pf-end').value=p.endDate||'';
+    S.projColor=p.color||'#00d4a0';
+    $('proj-swatches').querySelectorAll('.swatch').forEach(s=>s.classList.toggle('on',s.dataset.color===S.projColor));
   } else {
-    document.getElementById('auth-screen').style.display = 'flex';
+    ['pf-name','pf-desc','pf-start','pf-end'].forEach(id=>$(id).value='');
+    $('pf-status').value='planning';
+    S.projColor='#00d4a0';
+    $('proj-swatches').querySelectorAll('.swatch').forEach((s,i)=>s.classList.toggle('on',i===0));
   }
+  $('m-project').style.display='flex';
+}
 
-  // Keyboard shortcuts
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      closeStoryModal();
-      closeBoardModal();
+async function saveProject() {
+  const name=$('pf-name').value.trim();
+  if (!name) { toast('กรุณาใส่ชื่อ Project','err'); return; }
+  loading(true);
+  const payload={
+    name, description:$('pf-desc').value.trim(),
+    status:$('pf-status').value, color:S.projColor,
+    startDate:$('pf-start').value, endDate:$('pf-end').value,
+  };
+  try {
+    if (S.editingProjectId) {
+      await api('updateProject',{projectId:S.editingProjectId,...payload});
+      const idx=S.projects.findIndex(p=>p.id===S.editingProjectId);
+      if(idx!==-1) S.projects[idx]={...S.projects[idx],...payload};
+      toast('บันทึกสำเร็จ','ok');
+    } else {
+      const data=await api('createProject',payload);
+      S.projects.push(data.project);
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      document.getElementById('search-input').focus();
+    updateSidebar();
+    renderProjectsGrid();
+    closeModal('m-project');
+  } catch(e) { toast(e.message,'err'); }
+  finally { loading(false); }
+}
+
+async function deleteProject() {
+  if (!S.editingProjectId) return;
+  if (!confirm('ลบ Project นี้? Tasks และ Milestones ทั้งหมดจะถูกลบด้วย')) return;
+  loading(true);
+  try {
+    await api('deleteProject',{projectId:S.editingProjectId});
+    S.projects=S.projects.filter(p=>p.id!==S.editingProjectId);
+    S.tasks=S.tasks.filter(t=>t.projectId!==S.editingProjectId);
+    S.milestones=S.milestones.filter(m=>m.projectId!==S.editingProjectId);
+    closeModal('m-project'); updateSidebar(); renderProjectsGrid();
+    toast('ลบ Project สำเร็จ','ok');
+  } catch(e) { toast(e.message,'err'); }
+  finally { loading(false); }
+}
+
+// ── Milestone Modal ────────────────────────────────────────────
+function openMilestoneModal(id=null) {
+  S.editingMsId=id;
+  $('m-ms-title').textContent = id ? 'แก้ไข Milestone' : 'สร้าง Milestone ใหม่';
+  $('m-ms-del').style.display = id ? 'block' : 'none';
+  if (id) {
+    const ms=S.milestones.find(m=>m.id===id)||{};
+    $('msf-name').value=ms.name||''; $('msf-desc').value=ms.description||'';
+    $('msf-date').value=ms.targetDate||''; $('msf-status').value=ms.status||'pending';
+  } else {
+    $('msf-name').value=''; $('msf-desc').value='';
+    $('msf-date').value=''; $('msf-status').value='pending';
+  }
+  $('m-milestone').style.display='flex';
+}
+
+async function saveMilestone() {
+  const name=$('msf-name').value.trim();
+  if (!name) { toast('กรุณาใส่ชื่อ Milestone','err'); return; }
+  loading(true);
+  const payload={
+    name, description:$('msf-desc').value.trim(),
+    targetDate:$('msf-date').value, status:$('msf-status').value,
+    projectId:S.currentProject,
+  };
+  try {
+    if (S.editingMsId) {
+      await api('updateMilestone',{milestoneId:S.editingMsId,...payload});
+      const idx=S.milestones.findIndex(m=>m.id===S.editingMsId);
+      if(idx!==-1) S.milestones[idx]={...S.milestones[idx],...payload};
+      toast('บันทึกสำเร็จ','ok');
+    } else {
+      const data=await api('createMilestone',payload);
+      S.milestones.push(data.milestone);
+      toast('สร้าง Milestone สำเร็จ','ok');
     }
+    renderProjectDetail(S.currentProject);
+    closeModal('m-milestone');
+  } catch(e) { toast(e.message,'err'); }
+  finally { loading(false); }
+}
+
+async function deleteMilestone() {
+  if (!S.editingMsId) return;
+  if (!confirm('ลบ Milestone นี้? Tasks ที่เชื่อมอยู่จะยังคงอยู่')) return;
+  loading(true);
+  try {
+    await api('deleteMilestone',{milestoneId:S.editingMsId});
+    S.milestones=S.milestones.filter(m=>m.id!==S.editingMsId);
+    S.tasks.forEach(t=>{ if(t.milestoneId===S.editingMsId) t.milestoneId=''; });
+    renderProjectDetail(S.currentProject);
+    closeModal('m-milestone');
+    toast('ลบ Milestone สำเร็จ','ok');
+  } catch(e) { toast(e.message,'err'); }
+  finally { loading(false); }
+}
+
+// ── Task Modal ─────────────────────────────────────────────────
+function openTaskModal(defaultLane='current') {
+  S.editingTaskId=null;
+  $('m-task-title').textContent='สร้าง Task ใหม่'; $('m-task-id').textContent='';
+  $('tf-name').value=''; $('tf-desc').value='';
+  $('tf-type').value='feature'; $('tf-prio').value='P2';
+  $('tf-lane').value=defaultLane; $('tf-pts').value='0';
+  $('tf-assignee').value=''; $('tf-ms').value=''; $('tf-due').value='';
+  $('m-task-del').style.display='none';
+  $('task-comments-section').style.display='none';
+  $('m-task').style.display='flex';
+}
+
+function openTaskModal_edit(taskId) {
+  const t=S.tasks.find(x=>x.id===taskId); if(!t) return;
+  S.editingTaskId=taskId;
+  $('m-task-title').textContent='แก้ไข Task'; $('m-task-id').textContent=t.id;
+  $('tf-name').value=t.title||''; $('tf-desc').value=t.description||'';
+  $('tf-type').value=t.type||'feature'; $('tf-prio').value=t.priority||'P2';
+  $('tf-lane').value=t.lane||'current'; $('tf-pts').value=t.points||'0';
+  $('tf-assignee').value=t.assignee||''; $('tf-ms').value=t.milestoneId||'';
+  $('tf-due').value=t.dueDate||'';
+  const canDel=['Admin','Manager'].includes(S.user?.role);
+  $('m-task-del').style.display=canDel?'block':'none';
+  $('task-comments-section').style.display='block';
+  renderTaskComments(t.comments||[]);
+  $('m-task').style.display='flex';
+}
+
+function renderTaskComments(comments) {
+  const list=$('task-comments-list'); list.innerHTML='';
+  (comments||[]).forEach(c=>{
+    const d=document.createElement('div');
+    d.style.cssText='background:var(--bg);border-radius:7px;padding:7px 10px';
+    d.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+      <div class="av av-sm" style="background:${avColor(c.author)};color:#080c14">${initials(c.author)}</div>
+      <span style="font-size:10px;font-weight:600;color:var(--text2)">${esc(c.author)}</span>
+      <span style="font-size:9px;color:var(--text3)">${fmtDate(c.ts)}</span>
+    </div>
+    <p style="font-size:11px;color:var(--text);line-height:1.5">${esc(c.text)}</p>`;
+    list.appendChild(d);
+  });
+}
+
+async function addTaskComment() {
+  const inp=$('task-comment-inp');
+  const text=inp.value.trim();
+  if(!text||!S.editingTaskId) return;
+  inp.value='';
+  const c={author:S.user.name||S.user.email, text, ts:new Date().toISOString()};
+  try {
+    await api('addTaskComment',{taskId:S.editingTaskId, comment:c});
+    const task=S.tasks.find(t=>t.id===S.editingTaskId);
+    if(task){ task.comments=[...(task.comments||[]),c]; task.commentCount=(task.commentCount||0)+1; }
+    renderTaskComments(task?.comments||[]);
+    toast('เพิ่ม Comment สำเร็จ','ok');
+  } catch(e){ toast('เกิดข้อผิดพลาด','err'); }
+}
+
+async function saveTask() {
+  const title=$('tf-name').value.trim();
+  if(!title){ toast('กรุณาใส่ชื่อ Task','err'); return; }
+  loading(true);
+  const payload={
+    projectId:S.currentProject, title,
+    description:$('tf-desc').value.trim(),
+    type:$('tf-type').value, priority:$('tf-prio').value,
+    lane:$('tf-lane').value, points:parseInt($('tf-pts').value)||0,
+    assignee:$('tf-assignee').value, milestoneId:$('tf-ms').value,
+    dueDate:$('tf-due').value,
+  };
+  try {
+    if(S.editingTaskId){
+      payload.taskId=S.editingTaskId;
+      await api('updateTask',payload);
+      const idx=S.tasks.findIndex(t=>t.id===S.editingTaskId);
+      if(idx!==-1) S.tasks[idx]={...S.tasks[idx],...payload};
+      toast('บันทึกสำเร็จ','ok');
+    } else {
+      const data=await api('createTask',payload);
+      S.tasks.push(data.task);
+      toast('สร้าง Task สำเร็จ','ok');
+    }
+    closeModal('m-task');
+    renderProjectDetail(S.currentProject);
+    updateProjectStats();
+  } catch(e){ toast(e.message,'err'); }
+  finally { loading(false); }
+}
+
+async function deleteTask() {
+  if(!S.editingTaskId||!confirm('ลบ Task นี้?')) return;
+  loading(true);
+  try {
+    await api('deleteTask',{taskId:S.editingTaskId});
+    S.tasks=S.tasks.filter(t=>t.id!==S.editingTaskId);
+    closeModal('m-task');
+    renderProjectDetail(S.currentProject);
+    updateProjectStats();
+    toast('ลบ Task สำเร็จ','ok');
+  } catch(e){ toast(e.message,'err'); }
+  finally { loading(false); }
+}
+
+// ── Search ─────────────────────────────────────────────────────
+function onSearch() {
+  S.taskFilters.search=$('search-inp').value;
+  if ($('view-projects').classList.contains('on')) renderProjectsGrid();
+  else if ($('view-project-detail').classList.contains('on') && S.detailTab==='board') renderTaskBoard();
+}
+
+// ── Profile ────────────────────────────────────────────────────
+function openProfileModal() {
+  const u=S.user;
+  const roleColors={Admin:'var(--em)',Manager:'var(--violet)',Member:'var(--info)',Viewer:'var(--text2)'};
+  $('prof-av').textContent=initials(u.name||u.email);
+  $('prof-av').style.background=avColor(u.name||u.email);
+  $('prof-av').style.color='#080c14';
+  $('prof-name').textContent=u.name||u.email;
+  $('prof-email').textContent=u.email;
+  const rEl=$('prof-role');
+  rEl.textContent=u.role; rEl.style.background=`${roleColors[u.role]||'var(--text2)'}20`; rEl.style.color=roleColors[u.role]||'var(--text2)';
+  $('pp-old').value=''; $('pp-new').value='';
+  $('m-profile').style.display='flex';
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+function closeModal(id) { $(id).style.display='none'; }
+
+// ── Init ───────────────────────────────────────────────────────
+(function init(){
+  const raw=sessionStorage.getItem('sess');
+  if(raw){ try{ const d=JSON.parse(raw); S.user=d.user; S.token=d.token; bootApp(); }catch{} }
+  else { $('auth').style.display='flex'; }
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      ['m-project','m-milestone','m-task','m-profile'].forEach(id=>$(id).style.display='none');
+    }
+    if((e.ctrlKey||e.metaKey)&&e.key==='k'){ e.preventDefault(); $('search-inp').focus(); }
   });
 })();

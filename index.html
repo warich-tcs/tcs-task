@@ -1,557 +1,612 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>THE CODE · Board</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sarabun: ['Sarabun', 'sans-serif'], inter: ['Inter', 'sans-serif'] },
-          colors: {
-            brand: {
-              900: '#0a0e1a', 800: '#111827', 700: '#1e2a3a',
-              600: '#243447', 500: '#2d4060',
-              emerald: '#00c896', teal: '#00a87a',
-              magenta: '#e040c8', violet: '#7c3aed',
-              gold: '#f59e0b', danger: '#ef4444', warn: '#f97316'
-            }
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: 'Sarabun', sans-serif; background: #0a0e1a; color: #e2e8f0; min-height: 100vh; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>THE CODE · Projects</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ═══ RESET & BASE ═══ */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #080c14;
+  --surface:  #0f1623;
+  --surface2: #141d2e;
+  --border:   #1a2540;
+  --border2:  #243050;
+  --text:     #dce5f5;
+  --text2:    #7a90b8;
+  --text3:    #3a4f72;
+  --em:       #00d4a0;
+  --em2:      #00a87a;
+  --violet:   #7c5cfc;
+  --gold:     #f5a623;
+  --danger:   #f04060;
+  --warn:     #f97316;
+  --info:     #3b9eff;
+}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #111827; }
-    ::-webkit-scrollbar-thumb { background: #2d4060; border-radius: 3px; }
+/* ═══ AUTH ═══ */
+#auth{
+  display:flex;align-items:center;justify-content:center;min-height:100vh;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(0,212,160,.10) 0%,transparent 70%),
+             radial-gradient(ellipse 50% 40% at 90% 90%,rgba(124,92,252,.08) 0%,transparent 60%),
+             var(--bg);
+}
+.auth-wrap{width:400px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;box-shadow:0 32px 80px rgba(0,0,0,.6)}
+.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;justify-content:center}
+.logo-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--em),var(--em2));border-radius:12px;display:flex;align-items:center;justify-content:center}
+.auth-tab-row{display:flex;border-bottom:1px solid var(--border);margin-bottom:24px}
+.auth-tab{padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:'Sarabun',sans-serif;transition:all .15s}
+.auth-tab.on{color:var(--em);border-bottom-color:var(--em)}
+.field-lbl{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:6px}
+.f-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'Sarabun',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+.f-input:focus{border-color:var(--em);box-shadow:0 0 0 3px rgba(0,212,160,.10)}
+.btn-em{background:linear-gradient(135deg,var(--em),var(--em2));border:none;border-radius:9px;padding:12px 20px;color:#080c14;font-weight:700;font-size:14px;cursor:pointer;width:100%;font-family:'Sarabun',sans-serif;transition:opacity .2s}
+.btn-em:hover{opacity:.88}
+.btn-em:disabled{opacity:.4;cursor:not-allowed}
+.err-msg{color:var(--danger);font-size:12px;margin-top:10px;text-align:center;display:none}
 
-    /* ── Auth Screen ── */
-    #auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh;
-      background: radial-gradient(ellipse at 60% 0%, rgba(0,200,150,0.12) 0%, transparent 60%),
-                  radial-gradient(ellipse at 10% 90%, rgba(124,58,237,0.10) 0%, transparent 55%), #0a0e1a; }
-    .auth-card { width: 420px; background: #111827; border: 1px solid #1e2a3a;
-      border-radius: 16px; padding: 40px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
-    .auth-input { width: 100%; background: #0a0e1a; border: 1px solid #243447; border-radius: 8px;
-      padding: 11px 14px; color: #e2e8f0; font-family: 'Sarabun',sans-serif; font-size: 15px;
-      outline: none; transition: border-color .2s; }
-    .auth-input:focus { border-color: #00c896; box-shadow: 0 0 0 3px rgba(0,200,150,0.12); }
-    .btn-primary { background: linear-gradient(135deg, #00c896, #00a87a); border: none;
-      border-radius: 8px; padding: 12px 24px; color: #0a0e1a; font-weight: 700; font-size: 15px;
-      cursor: pointer; width: 100%; transition: opacity .2s, transform .1s; font-family: 'Sarabun',sans-serif; }
-    .btn-primary:hover { opacity: .9; }
-    .btn-primary:active { transform: scale(.98); }
-    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+/* ═══ APP LAYOUT ═══ */
+#app{display:none;flex-direction:column;height:100vh;overflow:hidden}
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:14px;flex-shrink:0;z-index:60;position:relative}
+.body-wrap{display:flex;flex:1;overflow:hidden}
 
-    /* ── Main Layout ── */
-    #app-screen { display: none; flex-direction: column; min-height: 100vh; }
-    .topbar { background: #111827; border-bottom: 1px solid #1e2a3a; height: 56px;
-      display: flex; align-items: center; padding: 0 20px; gap: 16px; position: sticky; top: 0; z-index: 50; }
-    .sidebar { width: 240px; background: #111827; border-right: 1px solid #1e2a3a;
-      min-height: calc(100vh - 56px); flex-shrink: 0; overflow-y: auto; }
-    .main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+/* ═══ SIDEBAR ═══ */
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb-section{padding:14px 10px 6px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
+.sb-item{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 6px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text2);transition:all .15s;user-select:none}
+.sb-item:hover{background:var(--surface2);color:var(--text)}
+.sb-item.on{background:rgba(0,212,160,.10);color:var(--em)}
+.sb-badge{margin-left:auto;background:var(--surface2);border-radius:20px;padding:1px 7px;font-size:10px;font-family:'Inter',monospace}
 
-    /* ── Kanban Board ── */
-    .board-area { flex: 1; overflow-x: auto; padding: 20px; display: flex; gap: 16px; align-items: flex-start; }
-    .lane { flex-shrink: 0; width: 280px; background: #111827; border: 1px solid #1e2a3a;
-      border-radius: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 120px); }
-    .lane-header { padding: 14px 16px; border-bottom: 1px solid #1e2a3a; display: flex;
-      align-items: center; justify-content: space-between; border-radius: 12px 12px 0 0; position: sticky; top: 0; }
-    .lane-body { overflow-y: auto; padding: 10px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
-    .lane-footer { padding: 10px; border-top: 1px solid #1e2a3a; }
+/* ═══ MAIN CONTENT ═══ */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 
-    /* ── Story Cards ── */
-    .story-card { background: #0a0e1a; border: 1px solid #1e2a3a; border-radius: 10px;
-      padding: 12px; cursor: grab; transition: box-shadow .2s, border-color .2s, transform .15s;
-      user-select: none; }
-    .story-card:hover { border-color: #2d4060; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-    .story-card.dragging { opacity: .5; transform: rotate(2deg); cursor: grabbing; }
-    .story-card.drag-over { border-color: #00c896; box-shadow: 0 0 0 2px rgba(0,200,150,0.3); }
-    .story-card .story-id { font-family: 'Inter', monospace; font-size: 10px; color: #4b6282; }
-    .story-card .story-title { font-size: 14px; font-weight: 500; margin: 4px 0 8px; line-height: 1.4; }
-    .story-card .story-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* ═══ VIEWS ═══ */
+.view{flex:1;overflow:auto;padding:24px;display:none}
+.view.on{display:block}
 
-    /* ── Badges ── */
-    .badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
-    .badge-feature  { background: rgba(0,200,150,.15); color: #00c896; }
-    .badge-bug      { background: rgba(239,68,68,.15); color: #ef4444; }
-    .badge-chore    { background: rgba(75,98,130,.2); color: #94a3b8; }
-    .badge-release  { background: rgba(124,58,237,.15); color: #a78bfa; }
-    .badge-epic     { background: rgba(245,158,11,.15); color: #f59e0b; }
-    .badge-p0       { background: #ef4444; color: #fff; }
-    .badge-p1       { background: rgba(249,115,22,.2); color: #f97316; }
-    .badge-p2       { background: rgba(234,179,8,.15); color: #eab308; }
-    .badge-p3       { background: rgba(75,98,130,.2); color: #94a3b8; }
-    .badge-pts      { background: rgba(124,58,237,.15); color: #a78bfa; }
+/* ═══ PROJECTS GRID ═══ */
+.projects-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.project-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.project-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+.project-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.proj-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px}
+.proj-desc{font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5}
+.proj-progress-wrap{margin-bottom:10px}
+.proj-progress-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:5px}
+.proj-progress-fill{height:100%;border-radius:3px;transition:width .5s}
+.proj-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.proj-stat{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px}
+.proj-milestones-mini{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
+.ms-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
-    /* ── Priority Dots ── */
-    .prio-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+/* ═══ PROJECT DETAIL BREADCRUMB ═══ */
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px}
+.bc-link{color:var(--em);cursor:pointer;font-weight:600}
+.bc-link:hover{text-decoration:underline}
+.bc-sep{color:var(--text3)}
+.bc-current{color:var(--text);font-weight:600}
 
-    /* ── Points chips ── */
-    .pts-chip { width: 22px; height: 22px; border-radius: 50%; background: #1e2a3a;
-      display: flex; align-items: center; justify-content: center; font-size: 10px;
-      font-weight: 700; font-family: 'Inter', monospace; color: #94a3b8; }
+/* ═══ MILESTONE TIMELINE ═══ */
+.timeline-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:22px}
+.timeline-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.timeline-track{position:relative;padding:8px 0}
+.tl-spine{position:absolute;left:18px;top:0;bottom:0;width:2px;background:var(--border2)}
+.milestone-row{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;position:relative}
+.ms-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;border:2px solid var(--border);position:relative;z-index:1;background:var(--surface)}
+.ms-icon.done{background:var(--em);border-color:var(--em);color:#080c14}
+.ms-icon.inprogress{background:var(--surface2);border-color:var(--info);color:var(--info)}
+.ms-icon.pending{background:var(--surface2);border-color:var(--border2);color:var(--text3)}
+.ms-icon.overdue{background:rgba(240,64,96,.15);border-color:var(--danger);color:var(--danger)}
+.ms-body{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;transition:border-color .2s}
+.ms-body:hover{border-color:var(--border2)}
+.ms-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.ms-date{font-size:11px;color:var(--text2);margin-bottom:8px}
+.ms-progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.ms-progress-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--em),var(--em2));transition:width .5s}
+.ms-tasks-preview{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.ms-task-chip{font-size:10px;padding:2px 8px;border-radius:20px;background:var(--border);color:var(--text2)}
+.ms-task-chip.done{background:rgba(0,212,160,.12);color:var(--em)}
 
-    /* ── Avatar ── */
-    .avatar { width: 22px; height: 22px; border-radius: 50%; display: flex;
-      align-items: center; justify-content: center; font-size: 9px; font-weight: 700;
-      flex-shrink: 0; border: 1.5px solid #1e2a3a; }
+/* ═══ KANBAN BOARD ═══ */
+.board-area{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;align-items:flex-start;flex:1}
+.lane{width:272px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;max-height:calc(100vh - 210px)}
+.lane-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0}
+.lane-body{overflow-y:auto;padding:8px;flex:1;display:flex;flex-direction:column;gap:7px;min-height:60px}
+.lane-foot{padding:8px;border-top:1px solid var(--border)}
+.lane-add-btn{width:100%;padding:6px;background:transparent;border:1px dashed var(--border);border-radius:7px;color:var(--text3);cursor:pointer;font-size:12px;font-family:'Sarabun',sans-serif;transition:all .15s}
+.lane-add-btn:hover{border-color:var(--border2);color:var(--text2)}
 
-    /* ── Dropdown ── */
-    .dropdown { position: absolute; background: #1e2a3a; border: 1px solid #2d4060;
-      border-radius: 10px; min-width: 180px; box-shadow: 0 12px 36px rgba(0,0,0,.5);
-      z-index: 200; overflow: hidden; }
-    .dropdown-item { padding: 10px 16px; font-size: 13px; cursor: pointer; transition: background .15s; }
-    .dropdown-item:hover { background: #243447; }
+/* Lane accent tops */
+.l-icebox  .lane-head{border-top:3px solid #3a4f72;border-radius:12px 12px 0 0}
+.l-backlog .lane-head{border-top:3px solid var(--gold)}
+.l-current .lane-head{border-top:3px solid var(--info)}
+.l-review  .lane-head{border-top:3px solid var(--violet)}
+.l-done    .lane-head{border-top:3px solid var(--em)}
 
-    /* ── Modal ── */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7);
-      display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
-    .modal-box { background: #111827; border: 1px solid #1e2a3a; border-radius: 16px;
-      width: 640px; max-width: 96vw; max-height: 90vh; overflow-y: auto;
-      box-shadow: 0 32px 80px rgba(0,0,0,.6); }
-    .modal-header { padding: 20px 24px; border-bottom: 1px solid #1e2a3a;
-      display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #111827; z-index: 1; }
-    .modal-body { padding: 24px; }
-    .modal-footer { padding: 16px 24px; border-top: 1px solid #1e2a3a;
-      display: flex; justify-content: flex-end; gap: 10px; }
+/* ═══ TASK CARDS ═══ */
+.task-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:11px;cursor:grab;transition:all .18s;user-select:none}
+.task-card:hover{border-color:var(--border2);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.task-card.dragging{opacity:.45;transform:rotate(1.5deg);cursor:grabbing}
+.task-card.drag-over-top{border-top:2px solid var(--em)}
+.tc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.tc-id{font-family:'Inter',monospace;font-size:10px;color:var(--text3)}
+.tc-title{font-size:13px;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:8px}
+.tc-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.tc-ms{font-size:10px;color:var(--violet);background:rgba(124,92,252,.12);padding:2px 7px;border-radius:20px;border:1px solid rgba(124,92,252,.2)}
 
-    .form-label { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase;
-      letter-spacing: .06em; margin-bottom: 6px; display: block; }
-    .form-input { width: 100%; background: #0a0e1a; border: 1px solid #243447; border-radius: 8px;
-      padding: 10px 14px; color: #e2e8f0; font-family: 'Sarabun',sans-serif; font-size: 14px;
-      outline: none; transition: border-color .2s; }
-    .form-input:focus { border-color: #00c896; }
-    .form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; padding-right: 36px; }
+/* ═══ BADGES ═══ */
+.badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
+.b-feature {background:rgba(0,212,160,.12);color:var(--em)}
+.b-bug     {background:rgba(240,64,96,.12);color:var(--danger)}
+.b-chore   {background:rgba(58,79,114,.25);color:var(--text2)}
+.b-release {background:rgba(124,92,252,.12);color:var(--violet)}
+.b-P0      {background:var(--danger);color:#fff}
+.b-P1      {background:rgba(249,115,22,.15);color:var(--warn)}
+.b-P2      {background:rgba(245,166,35,.12);color:var(--gold)}
+.b-P3      {background:rgba(58,79,114,.25);color:var(--text2)}
+.b-status-planning{background:rgba(58,79,114,.25);color:var(--text2)}
+.b-status-active  {background:rgba(59,158,255,.15);color:var(--info)}
+.b-status-done    {background:rgba(0,212,160,.12);color:var(--em)}
+.b-status-paused  {background:rgba(245,166,35,.12);color:var(--gold)}
 
-    /* ── Sidebar items ── */
-    .sidebar-item { padding: 9px 16px; font-size: 13px; cursor: pointer; border-radius: 8px;
-      margin: 0 8px; display: flex; align-items: center; gap: 10px; transition: background .15s; color: #94a3b8; }
-    .sidebar-item:hover, .sidebar-item.active { background: #1e2a3a; color: #e2e8f0; }
-    .sidebar-item.active { color: #00c896; }
+/* ═══ AVATAR ═══ */
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;border:1.5px solid var(--border)}
+.av-sm{width:22px;height:22px;font-size:9px}
+.av-md{width:28px;height:28px;font-size:10px}
 
-    /* ── Toast ── */
-    #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
-    .toast { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500;
-      box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: slideIn .3s ease; max-width: 320px; }
-    .toast-success { background: #0a2a1a; border: 1px solid #00c896; color: #00c896; }
-    .toast-error   { background: #2a0a0a; border: 1px solid #ef4444; color: #ef4444; }
-    .toast-info    { background: #0a1a2a; border: 1px solid #3b82f6; color: #93c5fd; }
-    @keyframes slideIn { from { transform: translateX(24px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+/* ═══ BUTTONS ═══ */
+.btn-ghost{padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text)}
+.btn-primary{padding:7px 16px;background:linear-gradient(135deg,var(--em),var(--em2));border:none;border-radius:8px;color:#080c14;font-weight:700;font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:opacity .2s}
+.btn-primary:hover{opacity:.88}
+.btn-danger{padding:7px 16px;background:rgba(240,64,96,.1);border:1px solid rgba(240,64,96,.3);border-radius:8px;color:var(--danger);font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif}
 
-    /* ── Lane color accents ── */
-    .lane-icebox   .lane-header { border-top: 3px solid #4b6282; border-radius: 12px 12px 0 0; }
-    .lane-backlog  .lane-header { border-top: 3px solid #f59e0b; }
-    .lane-current  .lane-header { border-top: 3px solid #3b82f6; }
-    .lane-review   .lane-header { border-top: 3px solid #e040c8; }
-    .lane-done     .lane-header { border-top: 3px solid #00c896; }
+/* ═══ MODAL ═══ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px)}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:580px;max-width:95vw;max-height:88vh;overflow-y:auto;box-shadow:0 32px 80px rgba(0,0,0,.7)}
+.modal-box.wide{width:720px}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1;border-radius:16px 16px 0 0}
+.modal-body{padding:22px}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.f-lbl{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:6px}
+.f-inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-family:'Sarabun',sans-serif;font-size:13px;outline:none;transition:border-color .2s}
+.f-inp:focus{border-color:var(--em)}
+.f-sel{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%237a90b8'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:14px;padding-right:32px}
+.f-textarea{resize:vertical;min-height:72px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 
-    /* ── Drag placeholder ── */
-    .drop-zone-placeholder { border: 2px dashed #2d4060; border-radius: 10px; height: 60px;
-      display: flex; align-items: center; justify-content: center; color: #4b6282; font-size: 12px; }
+/* ═══ FILTER BAR ═══ */
+.filter-bar{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;flex-wrap:wrap}
+.fb-btn{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .15s;font-family:'Sarabun',sans-serif}
+.fb-btn:hover,.fb-btn.on{border-color:var(--em);color:var(--em);background:rgba(0,212,160,.07)}
+.fb-sep{width:1px;height:18px;background:var(--border)}
 
-    /* ── Filter bar ── */
-    .filter-bar { padding: 12px 20px; border-bottom: 1px solid #1e2a3a;
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #0d1321; }
-    .filter-btn { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
-      cursor: pointer; border: 1px solid #1e2a3a; background: transparent; color: #94a3b8; transition: all .15s; }
-    .filter-btn:hover, .filter-btn.active { border-color: #00c896; color: #00c896; background: rgba(0,200,150,.08); }
+/* ═══ TOAST ═══ */
+#toasts{position:fixed;bottom:22px;right:22px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{padding:10px 18px;border-radius:10px;font-size:12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.5);animation:tin .25s ease;max-width:300px}
+.t-ok {background:#0a2a1a;border:1px solid var(--em);color:var(--em)}
+.t-err{background:#2a0a10;border:1px solid var(--danger);color:var(--danger)}
+.t-inf{background:#0a1a2e;border:1px solid var(--info);color:var(--info)}
+@keyframes tin{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
 
-    /* ── Epic banner ── */
-    .epic-tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: rgba(245,158,11,.12);
-      color: #f59e0b; border: 1px solid rgba(245,158,11,.2); display: inline-flex; align-items: center; gap: 4px; }
+/* ═══ SPINNER ═══ */
+.spin{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--em);border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
 
-    /* ── Loading ── */
-    .spinner { width: 20px; height: 20px; border: 2px solid #2d4060; border-top-color: #00c896;
-      border-radius: 50%; animation: spin .7s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+/* ═══ EMPTY STATE ═══ */
+.empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text2);text-align:center;padding:40px}
+.empty-icon{width:52px;height:52px;background:var(--surface2);border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
 
-    /* ── Progress bar ── */
-    .progress-bar { height: 3px; background: #1e2a3a; border-radius: 2px; overflow: hidden; }
-    .progress-fill { height: 100%; background: linear-gradient(90deg, #00c896, #00a87a); border-radius: 2px; transition: width .4s; }
+/* ═══ COLOR SWATCH ═══ */
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.swatch.on{border-color:var(--text);transform:scale(1.15)}
 
-    /* ── Textarea ── */
-    .form-textarea { resize: vertical; min-height: 80px; }
-
-    /* ── Tab ── */
-    .tab-btn { padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
-      border-bottom: 2px solid transparent; color: #94a3b8; transition: all .15s; }
-    .tab-btn.active { border-bottom-color: #00c896; color: #00c896; }
-
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-      .sidebar { display: none; }
-      .lane { width: 260px; }
-    }
-  </style>
+/* ═══ SECTION HEADER ═══ */
+.sec-head{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+</style>
 </head>
 <body>
 
-<!-- ════════════ AUTH SCREEN ════════════ -->
-<div id="auth-screen">
-  <div class="auth-card">
-    <div style="text-align:center; margin-bottom:32px;">
-      <div style="display:inline-flex; align-items:center; gap:10px; margin-bottom:8px;">
-        <div style="width:36px;height:36px;background:linear-gradient(135deg,#00c896,#00a87a);border-radius:10px;display:flex;align-items:center;justify-content:center;">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#0a0e1a" stroke-width="2.5"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
-        </div>
-        <span style="font-size:20px;font-weight:700;color:#e2e8f0;letter-spacing:.02em;">THE CODE · Board</span>
+<!-- ══════════════ AUTH ══════════════ -->
+<div id="auth">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <div class="logo-icon">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#080c14" stroke-width="2.5"><rect x="2" y="3" width="7" height="9" rx="1"/><rect x="13" y="3" width="9" height="5" rx="1"/><rect x="13" y="12" width="9" height="9" rx="1"/><rect x="2" y="16" width="7" height="5" rx="1"/></svg>
       </div>
-      <p style="font-size:13px;color:#4b6282;">Project Management System</p>
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:.02em">THE CODE · Projects</div>
+        <div style="font-size:11px;color:var(--text2)">Project & Task Management</div>
+      </div>
     </div>
 
-    <!-- Tab -->
-    <div id="auth-tabs" style="display:flex;border-bottom:1px solid #1e2a3a;margin-bottom:24px;">
-      <button class="tab-btn active" onclick="switchAuthTab('login')">เข้าสู่ระบบ</button>
-      <button class="tab-btn" onclick="switchAuthTab('change-pw')">เปลี่ยนรหัสผ่าน</button>
+    <div class="auth-tab-row">
+      <button class="auth-tab on" onclick="authTab('login')">เข้าสู่ระบบ</button>
+      <button class="auth-tab" onclick="authTab('chpw')">เปลี่ยนรหัสผ่าน</button>
     </div>
 
-    <!-- Login Form -->
-    <div id="tab-login">
-      <div style="margin-bottom:16px;">
-        <label class="form-label" style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:block;">อีเมล</label>
-        <input id="login-email" type="email" class="auth-input" placeholder="your@email.com" onkeydown="if(event.key==='Enter')loginSubmit()" />
-      </div>
-      <div style="margin-bottom:24px;">
-        <label class="form-label" style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:block;">รหัสผ่าน</label>
-        <input id="login-password" type="password" class="auth-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginSubmit()" />
-      </div>
-      <button class="btn-primary" id="login-btn" onclick="loginSubmit()">เข้าสู่ระบบ</button>
-      <p id="login-error" style="color:#ef4444;font-size:13px;margin-top:12px;text-align:center;display:none;"></p>
+    <div id="t-login">
+      <div style="margin-bottom:14px"><label class="field-lbl">อีเมล</label><input id="l-email" type="email" class="f-input" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div style="margin-bottom:20px"><label class="field-lbl">รหัสผ่าน</label><input id="l-pw" type="password" class="f-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <button class="btn-em" id="l-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+      <p class="err-msg" id="l-err"></p>
     </div>
 
-    <!-- Change Password Form -->
-    <div id="tab-change-pw" style="display:none;">
-      <div style="margin-bottom:16px;">
-        <label class="form-label" style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:block;">อีเมล</label>
-        <input id="cp-email" type="email" class="auth-input" placeholder="your@email.com" />
-      </div>
-      <div style="margin-bottom:16px;">
-        <label class="form-label" style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:block;">รหัสผ่านปัจจุบัน</label>
-        <input id="cp-old" type="password" class="auth-input" placeholder="••••••••" />
-      </div>
-      <div style="margin-bottom:24px;">
-        <label class="form-label" style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:block;">รหัสผ่านใหม่</label>
-        <input id="cp-new" type="password" class="auth-input" placeholder="••••••••" />
-      </div>
-      <button class="btn-primary" id="cp-btn" onclick="changePasswordSubmit()">เปลี่ยนรหัสผ่าน</button>
-      <p id="cp-error" style="color:#ef4444;font-size:13px;margin-top:12px;text-align:center;display:none;"></p>
+    <div id="t-chpw" style="display:none">
+      <div style="margin-bottom:14px"><label class="field-lbl">อีเมล</label><input id="cp-email" type="email" class="f-input" placeholder="your@email.com"/></div>
+      <div style="margin-bottom:14px"><label class="field-lbl">รหัสผ่านปัจจุบัน</label><input id="cp-old" type="password" class="f-input" placeholder="••••••••"/></div>
+      <div style="margin-bottom:20px"><label class="field-lbl">รหัสผ่านใหม่</label><input id="cp-new" type="password" class="f-input" placeholder="••••••••"/></div>
+      <button class="btn-em" id="cp-btn" onclick="doChangePassword()">เปลี่ยนรหัสผ่าน</button>
+      <p class="err-msg" id="cp-err"></p>
     </div>
 
-    <div style="margin-top:20px;text-align:center;">
-      <p style="font-size:11px;color:#2d4060;">ติดต่อผู้ดูแลระบบหากไม่มีบัญชีผู้ใช้</p>
-    </div>
+    <p style="font-size:11px;color:var(--text3);text-align:center;margin-top:18px">ติดต่อ Admin เพื่อขอบัญชีผู้ใช้</p>
   </div>
 </div>
 
-<!-- ════════════ APP SCREEN ════════════ -->
-<div id="app-screen" style="display:none;flex-direction:column;min-height:100vh;">
+<!-- ══════════════ APP ══════════════ -->
+<div id="app">
 
   <!-- Topbar -->
   <div class="topbar">
-    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-      <div style="width:28px;height:28px;background:linear-gradient(135deg,#00c896,#00a87a);border-radius:7px;display:flex;align-items:center;justify-content:center;">
-        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="#0a0e1a" stroke-width="2.5"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+    <div class="auth-logo" style="margin:0;gap:9px;flex-shrink:0">
+      <div class="logo-icon" style="width:32px;height:32px;border-radius:9px">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#080c14" stroke-width="2.5"><rect x="2" y="3" width="7" height="9" rx="1"/><rect x="13" y="3" width="9" height="5" rx="1"/><rect x="13" y="12" width="9" height="9" rx="1"/><rect x="2" y="16" width="7" height="5" rx="1"/></svg>
       </div>
-      <span style="font-size:15px;font-weight:700;color:#e2e8f0;">THE CODE · Board</span>
+      <span style="font-size:14px;font-weight:700;color:var(--text)">THE CODE · Projects</span>
     </div>
 
-    <!-- Board selector -->
-    <div style="flex:1;display:flex;align-items:center;gap:8px;padding-left:20px;">
-      <select id="board-selector" class="form-input form-select" style="max-width:260px;padding:6px 32px 6px 10px;font-size:13px;background:#0d1321;border-color:#1e2a3a;" onchange="loadBoard(this.value)">
-        <option value="">— เลือก Board —</option>
-      </select>
-      <button id="btn-new-board" onclick="openNewBoardModal()" style="padding:6px 12px;background:#1e2a3a;border:1px solid #2d4060;border-radius:7px;color:#94a3b8;font-size:12px;cursor:pointer;display:none;" title="สร้าง Board ใหม่">+ Board</button>
-    </div>
+    <div id="breadcrumb-bar" style="flex:1;display:flex;align-items:center;gap:8px;padding-left:14px;font-size:13px"></div>
 
-    <!-- Search -->
-    <div style="display:flex;align-items:center;background:#0d1321;border:1px solid #1e2a3a;border-radius:8px;padding:0 12px;gap:8px;max-width:200px;">
-      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#4b6282" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input id="search-input" type="text" placeholder="ค้นหา..." style="background:transparent;border:none;outline:none;color:#e2e8f0;font-family:'Sarabun',sans-serif;font-size:13px;width:140px;" oninput="filterCards()" />
-    </div>
-
-    <!-- User menu -->
-    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-      <div id="loading-indicator" style="display:none;"><div class="spinner"></div></div>
-      <button onclick="openMyProfileModal()" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:8px;">
-        <div id="user-avatar" class="avatar" style="width:30px;height:30px;font-size:11px;background:#1e2a3a;color:#00c896;border-color:#2d4060;"></div>
-        <span id="user-display-name" style="font-size:13px;color:#94a3b8;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <div style="display:flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0 10px;gap:7px">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="var(--text3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="search-inp" type="text" placeholder="ค้นหา..." style="background:transparent;border:none;outline:none;color:var(--text);font-family:'Sarabun',sans-serif;font-size:12px;width:130px" oninput="onSearch()"/>
+      </div>
+      <div id="loading-wrap" style="display:none"><div class="spin"></div></div>
+      <button onclick="openProfileModal()" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:7px">
+        <div id="top-av" class="av av-md"></div>
+        <span id="top-name" style="font-size:12px;color:var(--text2);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       </button>
-      <button onclick="logout()" style="padding:6px 14px;background:transparent;border:1px solid #1e2a3a;border-radius:7px;color:#4b6282;font-size:12px;cursor:pointer;">ออกจากระบบ</button>
+      <button class="btn-ghost" style="font-size:11px" onclick="doLogout()">ออก</button>
     </div>
   </div>
 
   <!-- Body -->
-  <div style="display:flex;flex:1;overflow:hidden;">
+  <div class="body-wrap">
 
     <!-- Sidebar -->
     <div class="sidebar">
-      <div style="padding:16px 16px 8px;">
-        <p style="font-size:10px;font-weight:700;color:#2d4060;text-transform:uppercase;letter-spacing:.08em;">Navigation</p>
+      <div class="sb-section">Workspace</div>
+      <div class="sb-item on" id="sb-projects" onclick="goProjects()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="7" height="9" rx="1"/><rect x="13" y="3" width="9" height="5" rx="1"/><rect x="13" y="12" width="9" height="9" rx="1"/><rect x="2" y="16" width="7" height="5" rx="1"/></svg>
+        All Projects
+        <span class="sb-badge" id="sb-proj-count">0</span>
       </div>
-      <div class="sidebar-item active" onclick="setView('board')" id="nav-board">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Kanban Board
-      </div>
-      <div class="sidebar-item" onclick="setView('backlog')" id="nav-backlog">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        Backlog View
-      </div>
-      <div class="sidebar-item" onclick="setView('epics')" id="nav-epics">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-        Epics
+      <div class="sb-item" id="sb-mytasks" onclick="goMyTasks()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        งานของฉัน
+        <span class="sb-badge" id="sb-mytasks-count">0</span>
       </div>
 
-      <div style="padding:16px 16px 8px;margin-top:8px;border-top:1px solid #1e2a3a;">
-        <p style="font-size:10px;font-weight:700;color:#2d4060;text-transform:uppercase;letter-spacing:.08em;">Admin</p>
-      </div>
-      <div class="sidebar-item" onclick="setView('members')" id="nav-members" style="display:none;">
+      <div class="sb-section" style="margin-top:6px">Projects</div>
+      <div id="sb-proj-list"></div>
+
+      <div class="sb-section" style="margin-top:6px">Admin</div>
+      <div class="sb-item" id="sb-members" onclick="goMembers()" style="display:none">
         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-        สมาชิก & สิทธิ์
+        Users & Roles
       </div>
-      <div class="sidebar-item" onclick="syncData()" id="nav-sync">
+      <div class="sb-item" onclick="syncAll()">
         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/></svg>
         Sync ข้อมูล
       </div>
     </div>
 
     <!-- Main -->
-    <div class="main-content">
+    <div class="main">
 
-      <!-- Filter bar -->
-      <div class="filter-bar">
-        <span style="font-size:11px;font-weight:700;color:#4b6282;text-transform:uppercase;letter-spacing:.06em;">Filter:</span>
-        <button class="filter-btn active" onclick="setFilter('type','')" data-filter-type="">ทั้งหมด</button>
-        <button class="filter-btn" onclick="setFilter('type','feature')" data-filter-type="feature">Feature</button>
-        <button class="filter-btn" onclick="setFilter('type','bug')" data-filter-type="bug">Bug</button>
-        <button class="filter-btn" onclick="setFilter('type','chore')" data-filter-type="chore">Chore</button>
-        <button class="filter-btn" onclick="setFilter('type','release')" data-filter-type="release">Release</button>
-        <div style="width:1px;height:20px;background:#1e2a3a;margin:0 4px;"></div>
-        <button class="filter-btn" onclick="setFilter('priority','P0')" data-filter-priority="">🔴 P0</button>
-        <button class="filter-btn" onclick="setFilter('priority','P1')" data-filter-priority="">🟠 P1</button>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-          <select id="filter-assignee" class="form-input form-select" style="font-size:12px;padding:5px 28px 5px 10px;background:#0d1321;border-color:#1e2a3a;width:150px;" onchange="filterCards()">
-            <option value="">Assignee: ทั้งหมด</option>
+      <!-- VIEW: All Projects -->
+      <div class="view on" id="view-projects">
+        <div class="projects-header">
+          <div>
+            <h1 style="font-size:18px;font-weight:700;color:var(--text)">All Projects</h1>
+            <p style="font-size:12px;color:var(--text2);margin-top:2px">ภาพรวมโครงการทั้งหมด</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:4px">
+              <button class="fb-btn on" onclick="setProjFilter('')" data-pf="">ทั้งหมด</button>
+              <button class="fb-btn" onclick="setProjFilter('active')" data-pf="active">Active</button>
+              <button class="fb-btn" onclick="setProjFilter('planning')" data-pf="planning">Planning</button>
+              <button class="fb-btn" onclick="setProjFilter('done')" data-pf="done">Done</button>
+            </div>
+            <button id="btn-new-proj" class="btn-primary" onclick="openProjectModal()" style="display:none">+ Project</button>
+          </div>
+        </div>
+        <div class="projects-grid" id="proj-grid"></div>
+        <div class="empty" id="proj-empty" style="display:none">
+          <div class="empty-icon"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--text3)" stroke-width="1.5"><rect x="2" y="3" width="7" height="9" rx="1"/><rect x="13" y="3" width="9" height="5" rx="1"/></svg></div>
+          <p style="font-size:14px;font-weight:600">ยังไม่มี Project</p>
+          <p style="font-size:12px">กด "+ Project" เพื่อเริ่มต้น</p>
+        </div>
+      </div>
+
+      <!-- VIEW: Project Detail -->
+      <div class="view" id="view-project-detail">
+        <div class="breadcrumb" id="detail-bc"></div>
+
+        <!-- Project Summary Bar -->
+        <div id="proj-summary-bar" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+              <span id="det-proj-name" style="font-size:16px;font-weight:700;color:var(--text)"></span>
+              <span id="det-proj-status" class="badge"></span>
+            </div>
+            <p id="det-proj-desc" style="font-size:12px;color:var(--text2)"></p>
+          </div>
+          <div style="display:flex;gap:20px;flex-shrink:0">
+            <div style="text-align:center">
+              <div id="det-pct" style="font-size:24px;font-weight:700;color:var(--em);font-family:'Inter',sans-serif">0%</div>
+              <div style="font-size:10px;color:var(--text2)">Complete</div>
+            </div>
+            <div style="text-align:center">
+              <div id="det-total-tasks" style="font-size:24px;font-weight:700;color:var(--text);font-family:'Inter',sans-serif">0</div>
+              <div style="font-size:10px;color:var(--text2)">Tasks</div>
+            </div>
+            <div style="text-align:center">
+              <div id="det-done-tasks" style="font-size:24px;font-weight:700;color:var(--em);font-family:'Inter',sans-serif">0</div>
+              <div style="font-size:10px;color:var(--text2)">Done</div>
+            </div>
+            <div style="text-align:center">
+              <div id="det-ms-count" style="font-size:24px;font-weight:700;color:var(--violet);font-family:'Inter',sans-serif">0</div>
+              <div style="font-size:10px;color:var(--text2)">Milestones</div>
+            </div>
+          </div>
+          <div style="width:100%;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:5px">
+              <span>Overall Progress</span>
+              <span id="det-pct-label">0%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div id="det-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--em),var(--em2));border-radius:3px;transition:width .5s;width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-tabs -->
+        <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:18px;gap:0">
+          <button class="auth-tab on" id="tab-timeline" onclick="switchDetailTab('timeline')">📍 Milestone Timeline</button>
+          <button class="auth-tab" id="tab-board" onclick="switchDetailTab('board')">🗂 Task Board</button>
+        </div>
+
+        <!-- Timeline Tab -->
+        <div id="detail-timeline">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <p style="font-size:12px;color:var(--text2)">Milestones = จุดสำคัญของโครงการ — Tasks ภายใน milestone แสดง progress</p>
+            <button id="btn-add-ms" class="btn-primary" onclick="openMilestoneModal()" style="display:none">+ Milestone</button>
+          </div>
+          <div class="timeline-wrap" style="padding:0;border:none;background:transparent">
+            <div class="timeline-track">
+              <div class="tl-spine"></div>
+              <div id="timeline-list"></div>
+            </div>
+          </div>
+          <div class="empty" id="timeline-empty" style="display:none">
+            <div class="empty-icon">📍</div>
+            <p style="font-size:14px;font-weight:600">ยังไม่มี Milestone</p>
+            <p style="font-size:12px">กด "+ Milestone" เพื่อเพิ่มจุดสำคัญ</p>
+          </div>
+        </div>
+
+        <!-- Board Tab -->
+        <div id="detail-board" style="display:none">
+          <div class="filter-bar" style="padding:8px 0;border:none;margin-bottom:14px;background:transparent">
+            <button class="fb-btn on" onclick="setTaskFilter('type','')" data-tf-type="">ทั้งหมด</button>
+            <button class="fb-btn" onclick="setTaskFilter('type','feature')" data-tf-type="feature">Feature</button>
+            <button class="fb-btn" onclick="setTaskFilter('type','bug')" data-tf-type="bug">Bug</button>
+            <button class="fb-btn" onclick="setTaskFilter('type','chore')" data-tf-type="chore">Chore</button>
+            <div class="fb-sep"></div>
+            <select id="filter-ms" class="f-inp f-sel" style="font-size:11px;padding:4px 28px 4px 10px;width:160px;background:var(--bg);border-color:var(--border)" onchange="renderTaskBoard()">
+              <option value="">Milestone: ทั้งหมด</option>
+            </select>
+            <select id="filter-assignee-task" class="f-inp f-sel" style="font-size:11px;padding:4px 28px 4px 10px;width:150px;background:var(--bg);border-color:var(--border)" onchange="renderTaskBoard()">
+              <option value="">Assignee: ทั้งหมด</option>
+            </select>
+            <button id="btn-add-task" class="btn-primary" onclick="openTaskModal()" style="display:none;margin-left:auto">+ Task</button>
+          </div>
+          <div class="board-area" id="task-board-area"></div>
+        </div>
+      </div>
+
+      <!-- VIEW: My Tasks -->
+      <div class="view" id="view-mytasks">
+        <div style="margin-bottom:20px">
+          <h1 style="font-size:18px;font-weight:700;color:var(--text)">งานของฉัน</h1>
+          <p style="font-size:12px;color:var(--text2);margin-top:2px">Tasks ทั้งหมดที่ assign ให้คุณ</p>
+        </div>
+        <div id="mytasks-list"></div>
+      </div>
+
+      <!-- VIEW: Members -->
+      <div class="view" id="view-members">
+        <div style="margin-bottom:20px">
+          <h1 style="font-size:18px;font-weight:700;color:var(--text)">Users & Roles</h1>
+          <p style="font-size:12px;color:var(--text2)">จัดการใน Google Sheets → แผ่น "Users"</p>
+        </div>
+        <div id="members-table"></div>
+      </div>
+
+    </div><!-- /main -->
+  </div><!-- /body-wrap -->
+</div><!-- /app -->
+
+<!-- ══════ MODALS ══════ -->
+
+<!-- Project Modal -->
+<div class="modal-bg" id="m-project" style="display:none" onclick="if(event.target===this)closeModal('m-project')">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="m-proj-title" style="font-size:14px;font-weight:700;color:var(--text)"></span>
+      <button onclick="closeModal('m-project')" style="background:none;border:none;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:14px"><label class="f-lbl">ชื่อ Project *</label><input id="pf-name" type="text" class="f-inp" placeholder="เช่น NAD Launch Q3, CRM Migration..."/></div>
+      <div style="margin-bottom:14px"><label class="f-lbl">รายละเอียด</label><textarea id="pf-desc" class="f-inp f-textarea" placeholder="วัตถุประสงค์, scope..."></textarea></div>
+      <div class="g3" style="margin-bottom:14px">
+        <div><label class="f-lbl">สถานะ</label>
+          <select id="pf-status" class="f-inp f-sel">
+            <option value="planning">Planning</option><option value="active">Active</option>
+            <option value="paused">Paused</option><option value="done">Done</option>
           </select>
-          <button id="btn-add-story" onclick="openNewStoryModal()" style="padding:7px 14px;background:linear-gradient(135deg,#00c896,#00a87a);border:none;border-radius:8px;color:#0a0e1a;font-weight:700;font-size:12px;cursor:pointer;display:none;">+ Story</button>
         </div>
+        <div><label class="f-lbl">วันเริ่ม</label><input id="pf-start" type="date" class="f-inp"/></div>
+        <div><label class="f-lbl">วันสิ้นสุด</label><input id="pf-end" type="date" class="f-inp"/></div>
       </div>
-
-      <!-- View containers -->
-      <div id="view-board" class="board-area"></div>
-      <div id="view-backlog" style="display:none;flex:1;overflow-y:auto;padding:20px;"></div>
-      <div id="view-epics" style="display:none;flex:1;overflow-y:auto;padding:20px;"></div>
-      <div id="view-members" style="display:none;flex:1;overflow-y:auto;padding:20px;"></div>
-
-      <!-- Empty state -->
-      <div id="empty-state" style="display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:40px;text-align:center;">
-        <div style="width:56px;height:56px;background:#1e2a3a;border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
-          <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#4b6282" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </div>
-        <p style="font-size:16px;font-weight:600;color:#4b6282;">เลือก Board หรือสร้าง Board ใหม่</p>
-        <p style="font-size:13px;color:#2d4060;">เลือก Board จาก dropdown ด้านบน</p>
-      </div>
+      <div style="margin-bottom:6px"><label class="f-lbl">สีโครงการ</label></div>
+      <div class="swatch-row" id="proj-swatches"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="m-proj-del" class="btn-danger" style="display:none" onclick="deleteProject()">ลบ Project</button>
+      <button class="btn-ghost" onclick="closeModal('m-project')">ยกเลิก</button>
+      <button class="btn-primary" onclick="saveProject()">บันทึก</button>
     </div>
   </div>
 </div>
 
-<!-- ════════════ MODALS ════════════ -->
-
-<!-- Story Detail / Create Modal -->
-<div id="story-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeStoryModal()">
+<!-- Milestone Modal -->
+<div class="modal-bg" id="m-milestone" style="display:none" onclick="if(event.target===this)closeModal('m-milestone')">
   <div class="modal-box">
-    <div class="modal-header">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div id="modal-story-id" style="font-family:'Inter',monospace;font-size:11px;color:#4b6282;"></div>
-        <span id="modal-mode-label" style="font-size:14px;font-weight:700;color:#e2e8f0;"></span>
-      </div>
-      <button onclick="closeStoryModal()" style="background:none;border:none;cursor:pointer;color:#4b6282;">
-        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
+    <div class="modal-head">
+      <span id="m-ms-title" style="font-size:14px;font-weight:700;color:var(--text)"></span>
+      <button onclick="closeModal('m-milestone')" style="background:none;border:none;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div class="modal-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-        <div>
-          <label class="form-label">ประเภท (Type)</label>
-          <select id="modal-type" class="form-input form-select">
-            <option value="feature">🟢 Feature</option>
-            <option value="bug">🔴 Bug</option>
-            <option value="chore">⚙️ Chore</option>
-            <option value="release">🚀 Release</option>
-          </select>
-        </div>
-        <div>
-          <label class="form-label">ลำดับความสำคัญ (Priority)</label>
-          <select id="modal-priority" class="form-input form-select">
-            <option value="P0">🔴 P0 - Critical</option>
-            <option value="P1">🟠 P1 - High</option>
-            <option value="P2" selected>🟡 P2 - Medium</option>
-            <option value="P3">⚪ P3 - Low</option>
+      <div style="margin-bottom:14px"><label class="f-lbl">ชื่อ Milestone *</label><input id="msf-name" type="text" class="f-inp" placeholder="เช่น Launch Phase 1, UAT Complete..."/></div>
+      <div style="margin-bottom:14px"><label class="f-lbl">รายละเอียด</label><textarea id="msf-desc" class="f-inp f-textarea" placeholder="Definition of done, deliverables..."></textarea></div>
+      <div class="g2" style="margin-bottom:14px">
+        <div><label class="f-lbl">วันที่เป้าหมาย</label><input id="msf-date" type="date" class="f-inp"/></div>
+        <div><label class="f-lbl">สถานะ</label>
+          <select id="msf-status" class="f-inp f-sel">
+            <option value="pending">Pending</option><option value="inprogress">In Progress</option>
+            <option value="done">Done</option><option value="overdue">Overdue</option>
           </select>
         </div>
       </div>
+    </div>
+    <div class="modal-foot">
+      <button id="m-ms-del" class="btn-danger" style="display:none" onclick="deleteMilestone()">ลบ</button>
+      <button class="btn-ghost" onclick="closeModal('m-milestone')">ยกเลิก</button>
+      <button class="btn-primary" onclick="saveMilestone()">บันทึก</button>
+    </div>
+  </div>
+</div>
 
-      <div style="margin-bottom:16px;">
-        <label class="form-label">ชื่อ Story *</label>
-        <input id="modal-title" type="text" class="form-input" placeholder="ระบุชื่อ Story..." />
+<!-- Task Modal -->
+<div class="modal-bg" id="m-task" style="display:none" onclick="if(event.target===this)closeModal('m-task')">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="m-task-id" style="font-family:'Inter',monospace;font-size:10px;color:var(--text3)"></span>
+        <span id="m-task-title" style="font-size:14px;font-weight:700;color:var(--text)"></span>
       </div>
-
-      <div style="margin-bottom:16px;">
-        <label class="form-label">รายละเอียด</label>
-        <textarea id="modal-desc" class="form-input form-textarea" placeholder="Acceptance criteria, รายละเอียดเพิ่มเติม..."></textarea>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
-        <div>
-          <label class="form-label">Epic</label>
-          <select id="modal-epic" class="form-input form-select">
-            <option value="">— ไม่มี Epic —</option>
+      <button onclick="closeModal('m-task')" style="background:none;border:none;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="g2" style="margin-bottom:14px">
+        <div><label class="f-lbl">ประเภท</label>
+          <select id="tf-type" class="f-inp f-sel">
+            <option value="feature">🟢 Feature</option><option value="bug">🔴 Bug</option>
+            <option value="chore">⚙️ Chore</option><option value="release">🚀 Release</option>
           </select>
         </div>
-        <div>
-          <label class="form-label">Assignee</label>
-          <select id="modal-assignee" class="form-input form-select">
-            <option value="">— ไม่ระบุ —</option>
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Points</label>
-          <select id="modal-points" class="form-input form-select">
-            <option value="0">0 - Unestimated</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="5">5</option>
-            <option value="8">8</option>
-            <option value="13">13</option>
+        <div><label class="f-lbl">Priority</label>
+          <select id="tf-prio" class="f-inp f-sel">
+            <option value="P0">🔴 P0 Critical</option><option value="P1">🟠 P1 High</option>
+            <option value="P2" selected>🟡 P2 Medium</option><option value="P3">⚪ P3 Low</option>
           </select>
         </div>
       </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-        <div>
-          <label class="form-label">Lane (สถานะ)</label>
-          <select id="modal-lane" class="form-input form-select">
-            <option value="icebox">❄️ Icebox</option>
-            <option value="backlog">📋 Backlog</option>
-            <option value="current" selected>🔵 Current Iteration</option>
-            <option value="review">🔍 In Review</option>
+      <div style="margin-bottom:14px"><label class="f-lbl">ชื่อ Task *</label><input id="tf-name" type="text" class="f-inp" placeholder="ระบุชื่องาน..."/></div>
+      <div style="margin-bottom:14px"><label class="f-lbl">รายละเอียด</label><textarea id="tf-desc" class="f-inp f-textarea" placeholder="Acceptance criteria, details..."></textarea></div>
+      <div class="g3" style="margin-bottom:14px">
+        <div><label class="f-lbl">Milestone</label>
+          <select id="tf-ms" class="f-inp f-sel"><option value="">— ไม่มี —</option></select>
+        </div>
+        <div><label class="f-lbl">Assignee</label>
+          <select id="tf-assignee" class="f-inp f-sel"><option value="">— ไม่ระบุ —</option></select>
+        </div>
+        <div><label class="f-lbl">Points</label>
+          <select id="tf-pts" class="f-inp f-sel">
+            <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+            <option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="13">13</option>
+          </select>
+        </div>
+      </div>
+      <div class="g2" style="margin-bottom:14px">
+        <div><label class="f-lbl">Lane (สถานะ)</label>
+          <select id="tf-lane" class="f-inp f-sel">
+            <option value="icebox">❄️ Icebox</option><option value="backlog">📋 Backlog</option>
+            <option value="current" selected>🔵 Current</option><option value="review">🔍 Review</option>
             <option value="done">✅ Done</option>
           </select>
         </div>
-        <div>
-          <label class="form-label">Due Date</label>
-          <input id="modal-due" type="date" class="form-input" />
-        </div>
+        <div><label class="f-lbl">Due Date</label><input id="tf-due" type="date" class="f-inp"/></div>
       </div>
-
-      <!-- Comments section (for edit mode) -->
-      <div id="modal-comments-section" style="display:none;border-top:1px solid #1e2a3a;padding-top:16px;margin-top:8px;">
-        <label class="form-label">Comments</label>
-        <div id="modal-comments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:160px;overflow-y:auto;"></div>
-        <div style="display:flex;gap:8px;">
-          <input id="modal-comment-input" type="text" class="form-input" style="flex:1;" placeholder="เพิ่มความคิดเห็น..." onkeydown="if(event.key==='Enter')addComment()" />
-          <button onclick="addComment()" style="padding:8px 16px;background:#1e2a3a;border:1px solid #2d4060;border-radius:8px;color:#94a3b8;cursor:pointer;font-size:13px;">ส่ง</button>
+      <!-- Comments -->
+      <div id="task-comments-section" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+        <p class="sec-head">Comments</p>
+        <div id="task-comments-list" style="display:flex;flex-direction:column;gap:7px;max-height:150px;overflow-y:auto;margin-bottom:10px"></div>
+        <div style="display:flex;gap:7px">
+          <input id="task-comment-inp" type="text" class="f-inp" style="flex:1" placeholder="เพิ่ม comment..." onkeydown="if(event.key==='Enter')addTaskComment()"/>
+          <button onclick="addTaskComment()" class="btn-ghost" style="font-size:12px">ส่ง</button>
         </div>
       </div>
     </div>
-    <div class="modal-footer">
-      <button id="modal-delete-btn" onclick="deleteStory()" style="padding:8px 18px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#ef4444;cursor:pointer;font-size:13px;display:none;">ลบ Story</button>
-      <button onclick="closeStoryModal()" style="padding:8px 18px;background:#1e2a3a;border:1px solid #2d4060;border-radius:8px;color:#94a3b8;cursor:pointer;font-size:13px;">ยกเลิก</button>
-      <button id="modal-save-btn" onclick="saveStory()" class="btn-primary" style="width:auto;padding:8px 24px;">บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<!-- New Board Modal -->
-<div id="board-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeBoardModal()">
-  <div class="modal-box" style="max-width:440px;">
-    <div class="modal-header">
-      <span style="font-size:14px;font-weight:700;color:#e2e8f0;">สร้าง Board ใหม่</span>
-      <button onclick="closeBoardModal()" style="background:none;border:none;cursor:pointer;color:#4b6282;">
-        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div style="margin-bottom:16px;">
-        <label class="form-label">ชื่อ Board *</label>
-        <input id="new-board-name" type="text" class="form-input" placeholder="เช่น Marketing Q3, Product Dev..." />
-      </div>
-      <div style="margin-bottom:16px;">
-        <label class="form-label">คำอธิบาย</label>
-        <textarea id="new-board-desc" class="form-input form-textarea" style="min-height:60px;" placeholder="รายละเอียด Board..."></textarea>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button onclick="closeBoardModal()" style="padding:8px 18px;background:#1e2a3a;border:1px solid #2d4060;border-radius:8px;color:#94a3b8;cursor:pointer;font-size:13px;">ยกเลิก</button>
-      <button onclick="createBoard()" class="btn-primary" style="width:auto;padding:8px 24px;">สร้าง Board</button>
-    </div>
-  </div>
-</div>
-
-<!-- Members Modal -->
-<div id="members-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)document.getElementById('members-modal').style.display='none'">
-  <div class="modal-box" style="max-width:560px;">
-    <div class="modal-header">
-      <span style="font-size:14px;font-weight:700;color:#e2e8f0;">สมาชิก & สิทธิ์การเข้าถึง</span>
-      <button onclick="document.getElementById('members-modal').style.display='none'" style="background:none;border:none;cursor:pointer;color:#4b6282;">
-        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div id="members-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div class="modal-foot">
+      <button id="m-task-del" class="btn-danger" style="display:none" onclick="deleteTask()">ลบ Task</button>
+      <button class="btn-ghost" onclick="closeModal('m-task')">ยกเลิก</button>
+      <button class="btn-primary" onclick="saveTask()">บันทึก</button>
     </div>
   </div>
 </div>
 
 <!-- Profile Modal -->
-<div id="profile-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)document.getElementById('profile-modal').style.display='none'">
-  <div class="modal-box" style="max-width:400px;">
-    <div class="modal-header">
-      <span style="font-size:14px;font-weight:700;color:#e2e8f0;">โปรไฟล์ของฉัน</span>
-      <button onclick="document.getElementById('profile-modal').style.display='none'" style="background:none;border:none;cursor:pointer;color:#4b6282;">
-        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
+<div class="modal-bg" id="m-profile" style="display:none" onclick="if(event.target===this)closeModal('m-profile')">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-head">
+      <span style="font-size:14px;font-weight:700;color:var(--text)">โปรไฟล์ของฉัน</span>
+      <button onclick="closeModal('m-profile')" style="background:none;border:none;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div class="modal-body">
-      <div style="text-align:center;margin-bottom:24px;">
-        <div id="profile-avatar-big" class="avatar" style="width:56px;height:56px;font-size:18px;margin:0 auto 12px;background:#1e2a3a;color:#00c896;border-color:#2d4060;"></div>
-        <p id="profile-name-big" style="font-size:16px;font-weight:700;color:#e2e8f0;"></p>
-        <p id="profile-email-big" style="font-size:13px;color:#4b6282;"></p>
-        <span id="profile-role-big" class="badge" style="margin-top:8px;display:inline-block;"></span>
+      <div style="text-align:center;margin-bottom:22px">
+        <div id="prof-av" class="av" style="width:52px;height:52px;font-size:17px;margin:0 auto 10px"></div>
+        <p id="prof-name" style="font-size:15px;font-weight:700;color:var(--text)"></p>
+        <p id="prof-email" style="font-size:12px;color:var(--text2)"></p>
+        <span id="prof-role" class="badge" style="margin-top:6px;display:inline-block"></span>
       </div>
-      <div style="border-top:1px solid #1e2a3a;padding-top:20px;">
-        <p style="font-size:12px;font-weight:700;color:#4b6282;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">เปลี่ยนรหัสผ่าน</p>
-        <div style="margin-bottom:12px;">
-          <label class="form-label">รหัสผ่านปัจจุบัน</label>
-          <input id="prof-old-pw" type="password" class="form-input" placeholder="••••••••" />
-        </div>
-        <div style="margin-bottom:16px;">
-          <label class="form-label">รหัสผ่านใหม่</label>
-          <input id="prof-new-pw" type="password" class="form-input" placeholder="••••••••" />
-        </div>
-        <button onclick="changePasswordFromProfile()" class="btn-primary">บันทึกรหัสผ่านใหม่</button>
+      <div style="border-top:1px solid var(--border);padding-top:18px">
+        <p class="sec-head">เปลี่ยนรหัสผ่าน</p>
+        <div style="margin-bottom:12px"><label class="f-lbl">รหัสผ่านปัจจุบัน</label><input id="pp-old" type="password" class="f-inp" placeholder="••••••••"/></div>
+        <div style="margin-bottom:16px"><label class="f-lbl">รหัสผ่านใหม่</label><input id="pp-new" type="password" class="f-inp" placeholder="••••••••"/></div>
+        <button class="btn-primary" onclick="doChangePwProfile()" style="width:100%">บันทึกรหัสผ่านใหม่</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Toast -->
-<div id="toast-container"></div>
+<div id="toasts"></div>
 
-<!-- CONFIG - แก้ไข URL ของ Google Apps Script ที่นี่ -->
-<script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxYRkzZfYmoeIDD_G-4OI_qw9TVhpkoW4uNoUITrEkTO3zyyNuqgFrMDgDLXsH92c5B/exec'; // ← เปลี่ยนตรงนี้
-</script>
-
+<script>const GAS_URL='https://script.google.com/macros/s/AKfycbygzIz-cnlPWZVews_AwqApZ1Z1oUhyOyNLy9v-rjn32KV7kEbUKWRmuPFQZc1Vc7O7/exec';</script>
 <script src="js/app.js"></script>
 </body>
 </html>
