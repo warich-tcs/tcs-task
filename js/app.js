@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONFIG — เปลี่ยน URL ด้านล่างให้เป็น GAS URL ของคุณ
 // ═══════════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxQ2ThUrjEWS-e8kqnhyB_VbUGYUlTl7xZHtAAwQ7WZ0NU8kGG_hIKaIvjMBxREso0/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEqcgOEtAHb2xyjhJK3kAiWM-FRyjzCS6R_ZAsEx1PGrFzjjOneLTbuJc7EwJLjx6g/exec';
 
 /* ══════════════════════════════════════════════════════
    THE CODE · Projects — app.js  v2
@@ -72,28 +72,55 @@ function genLocalId(prefix) {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
 }
 
-// ── API ───────────────────────────────────────────────────────
-async function api(action, payload={}) {
-  // Google Apps Script requires GET with URLSearchParams to avoid CORS preflight
-  // POST with text/plain works but GAS redirects — must use redirect:'follow'
-  const body = { action, token: S.token, ...payload };
+// ── API — ใช้ JSONP เพื่อ bypass GAS CORS redirect ────────────
+// GAS redirect ทุก request ผ่าน googleusercontent.com ซึ่ง fetch ติด CORS
+// JSONP inject <script> tag แทน ซึ่ง browser ไม่มี CORS restriction
+function api(action, payload={}) {
+  return new Promise(function(resolve, reject) {
+    if (!GAS_URL || GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+      return reject(new Error('ยังไม่ได้ตั้งค่า GAS_URL — เปิด js/app.js บรรทัดแรก'));
+    }
 
-  // Encode payload as URL param for GET (avoids all CORS issues with GAS)
-  const params = new URLSearchParams({ data: JSON.stringify(body) });
-  const url = GAS_URL + '?' + params.toString();
+    // สร้าง callback name ที่ unique
+    const cbName = 'gasCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
-  const res = await fetch(url, {
-    method: 'GET',
-    redirect: 'follow',
+    // Timeout 15 วินาที
+    const timer = setTimeout(function() {
+      cleanup();
+      reject(new Error('Request timeout — GAS ไม่ตอบสนองใน 15 วินาที'));
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      const el = document.getElementById(cbName);
+      if (el) el.remove();
+    }
+
+    // GAS จะเรียก callback นี้พร้อม JSON data
+    window[cbName] = function(data) {
+      cleanup();
+      console.log('[GAS JSONP]', action, '| ok:', data.ok);
+      if (!data.ok) return reject(new Error(data.error || 'API Error'));
+      resolve(data);
+    };
+
+    // สร้าง payload รวม callback name
+    const body = { action, token: S.token, callback: cbName, ...payload };
+    const url  = GAS_URL + '?data=' + encodeURIComponent(JSON.stringify(body));
+
+    console.log('[GAS REQ]', action);
+
+    // Inject script tag
+    const script = document.createElement('script');
+    script.id  = cbName;
+    script.src = url;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('โหลด script ไม่ได้ — ตรวจสอบ GAS URL'));
+    };
+    document.head.appendChild(script);
   });
-
-  if (!res.ok) throw new Error('Network error: ' + res.status);
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); }
-  catch(e) { throw new Error('Response ไม่ใช่ JSON — ตรวจสอบ GAS URL และ Deploy settings'); }
-  if (!data.ok) throw new Error(data.error || 'API Error');
-  return data;
 }
 
 // ── Auth ──────────────────────────────────────────────────────
