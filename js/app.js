@@ -554,44 +554,66 @@ function getCalEvents(tasks, milestones) {
 
 function renderCalendar(containerId, tasks, milestones) {
   const container=$(containerId); if(!container) return;
+
+  // Store context in S.calContext so calNav can access without inline JSON
+  if(!S.calContext) S.calContext={};
+  S.calContext[containerId] = { taskIds: tasks.map(t=>t.id), msIds: milestones.map(m=>m.id) };
+
   const d=S.calDate; const y=d.getFullYear(), mon=d.getMonth();
   const events=getCalEvents(tasks,milestones);
-  const firstDay=new Date(y,mon,1).getDay(); // 0=Sun
+  const firstDay=new Date(y,mon,1).getDay();
   const daysInMonth=new Date(y,mon+1,0).getDate();
   const monthName=d.toLocaleDateString('th-TH',{month:'long',year:'numeric'});
   const days=['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  // ใช้ data-attribute แทน inline JSON — หลีกเลี่ยง SyntaxError จาก quote conflict
   let html=`<div class="cal-wrap">
-    <div class="cal-header">
-      <button onclick="calNav(-1,'${containerId}',${JSON.stringify({ti:tasks.map(t=>t.id),mi:milestones.map(m=>m.id)})})" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:4px 10px;font-size:12px;color:var(--text2)">‹ ก่อน</button>
+    <div class="cal-header" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2)">
+      <button data-dir="-1" data-cid="${containerId}" onclick="calNav(this)" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:4px 12px;font-size:13px;color:var(--text2)">‹</button>
       <span style="font-size:13px;font-weight:700">${monthName}</span>
-      <button onclick="calNav(1,'${containerId}',${JSON.stringify({ti:tasks.map(t=>t.id),mi:milestones.map(m=>m.id)})})" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:4px 10px;font-size:12px;color:var(--text2)">ถัดไป ›</button>
+      <button data-dir="1" data-cid="${containerId}" onclick="calNav(this)" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:4px 12px;font-size:13px;color:var(--text2)">›</button>
     </div>
-    <div class="cal-grid">${days.map(d=>`<div class="cal-day-name">${d}</div>`).join('')}`;
-  const today=new Date(); const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  // Empty cells
+    <div class="cal-grid">${days.map(n=>`<div class="cal-day-name">${n}</div>`).join('')}`;
+
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
   for(let i=0;i<firstDay;i++) html+=`<div class="cal-cell" style="background:var(--surface2)"></div>`;
+
   for(let day=1;day<=daysInMonth;day++){
     const dateStr=`${y}-${String(mon+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isToday=dateStr===todayStr;
     const dayEvents=events.filter(e=>e.date===dateStr);
-    html+=`<div class="cal-cell">
-      <div class="cal-date${isToday?' today':''}">${day}</div>
-      ${dayEvents.slice(0,3).map(ev=>`<div class="cal-event" style="background:${ev.color}22;color:${ev.color};border-left:2px solid ${ev.color}" onclick="${ev.type==='task'?`openTaskModal_edit('${ev.id}')`:''}" title="${esc(ev.label)}">${esc(ev.label.slice(0,18))}</div>`).join('')}
-      ${dayEvents.length>3?`<div style="font-size:9px;color:var(--text2);padding-left:2px">+${dayEvents.length-3} more</div>`:''}
-    </div>`;
+    const evHtml=dayEvents.slice(0,3).map(ev=>{
+      const style=`background:${ev.color}22;color:${ev.color};border-left:2px solid ${ev.color}`;
+      if(ev.type==='task'){
+        return `<div class="cal-event" data-taskid="${ev.id}" onclick="calEventClick(this)" style="${style};cursor:pointer" title="${esc(ev.label)}">${esc(ev.label.slice(0,18))}</div>`;
+      }
+      return `<div class="cal-event" style="${style}" title="${esc(ev.label)}">${esc(ev.label.slice(0,18))}</div>`;
+    }).join('');
+    const moreHtml=dayEvents.length>3?`<div style="font-size:9px;color:var(--text2);padding:1px 4px">+${dayEvents.length-3}</div>`:'';
+    html+=`<div class="cal-cell"><div class="cal-date${isToday?' today':''}">${day}</div>${evHtml}${moreHtml}</div>`;
   }
-  // Fill remaining
+
   const total=firstDay+daysInMonth; const rem=total%7?7-(total%7):0;
   for(let i=0;i<rem;i++) html+=`<div class="cal-cell" style="background:var(--surface2)"></div>`;
   html+=`</div></div>`;
   container.innerHTML=html;
 }
 
-function calNav(dir, containerId, ids) {
+function calEventClick(el) {
+  const taskId=el.dataset.taskid;
+  if(taskId) openTaskModal_edit(taskId);
+}
+
+function calNav(btn) {
+  const dir=parseInt(btn.dataset.dir);
+  const cid=btn.dataset.cid;
   S.calDate=new Date(S.calDate.getFullYear(), S.calDate.getMonth()+dir, 1);
-  const tasks=S.tasks.filter(t=>ids.ti.includes(t.id));
-  const milestones=S.milestones.filter(m=>ids.mi.includes(m.id));
-  renderCalendar(containerId, tasks, milestones);
+  const ctx=(S.calContext&&S.calContext[cid])||{taskIds:[],msIds:[]};
+  const tasks=S.tasks.filter(t=>ctx.taskIds.includes(t.id));
+  const ms=S.milestones.filter(m=>ctx.msIds.includes(m.id));
+  renderCalendar(cid, tasks, ms);
 }
 
 function renderMainCalendar() {
