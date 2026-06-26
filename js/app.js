@@ -82,25 +82,34 @@ function simpleHash(s) {
 }
 
 // ── Button Lock ───────────────────────────────────────────────
-const _btnOrig = new WeakMap();
-function lockModal(id) {
-  document.querySelectorAll(`#${id} button`).forEach(btn => {
-    if (!btn.disabled) { _btnOrig.set(btn,{t:btn.textContent,d:false}); btn.disabled=true; btn.style.opacity='.5'; btn.style.cursor='not-allowed'; }
-  });
-}
-function unlockModal(id) {
-  document.querySelectorAll(`#${id} button`).forEach(btn => {
-    const o=_btnOrig.get(btn); if(o){ btn.disabled=o.d; btn.textContent=o.t; btn.style.opacity=''; btn.style.cursor=''; }
-  });
-}
-function btnLoading(btn, txt='กำลังส่ง...') {
-  if(!btn) return; _btnOrig.set(btn,{t:btn.textContent,d:btn.disabled});
+// ใช้วิธีง่าย: disable เฉพาะปุ่มที่ระบุ ไม่ lock ทั้ง modal
+function btnLoading(btn, txt='กำลังบันทึก...') {
+  if(!btn) return;
+  btn._origText = btn.textContent;
+  btn._origDisabled = btn.disabled;
   btn.disabled=true; btn.textContent=txt; btn.style.opacity='.6'; btn.style.cursor='not-allowed';
 }
 function btnReset(btn) {
-  if(!btn) return; const o=_btnOrig.get(btn);
-  if(o){ btn.disabled=o.d; btn.textContent=o.t; } btn.style.opacity=''; btn.style.cursor='';
+  if(!btn) return;
+  btn.disabled = btn._origDisabled || false;
+  btn.textContent = btn._origText || btn.textContent;
+  btn.style.opacity=''; btn.style.cursor='';
 }
+
+// ── Modal ─────────────────────────────────────────────────────
+// Helper: lock แค่ปุ่ม save ใน modal ระหว่าง async
+function lockSaveBtn(modalId) {
+  const btn = document.querySelector(`#${modalId} .modal-foot .btn-primary`);
+  if(btn) btnLoading(btn);
+  return btn;
+}
+function unlockSaveBtn(btn) {
+  if(btn) btnReset(btn);
+}
+
+// ── Legacy stubs (ไม่ใช้แล้ว แต่เก็บไว้กัน error) ─────────────
+function lockModal(id) {}
+function unlockModal(id) {}
 
 // ── JSONP API ─────────────────────────────────────────────────
 function api(action, payload={}) {
@@ -157,9 +166,9 @@ async function doChangePwProfile() {
   const old=$('pp-old').value, nw=$('pp-new').value;
   if(!old||!nw){ toast('กรุณากรอกรหัสผ่าน','err'); return; }
   if(nw.length<6){ toast('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัว','err'); return; }
-  lockModal('m-profile');
+  const _saveBtn = lockSaveBtn('m-profile');
   try { await api('changePassword',{email:S.user.email, oldPassword:old, newPassword:nw}); toast('เปลี่ยนรหัสผ่านสำเร็จ','ok'); closeModal('m-profile'); }
-  catch(e){ toast(e.message,'err'); unlockModal('m-profile'); }
+  catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
 }
 
 function doLogout() {
@@ -293,15 +302,12 @@ function goProjectDetail(id) {
 function closeModal(id) {
   const el=$(id); if(!el) return;
   el.style.display='none';
-  // Unlock ปุ่มทุกปุ่มใน modal เสมอ เพื่อให้พร้อมใช้งานครั้งถัดไป
-  unlockModal(id);
-  // Reset form inputs ใน modal
-  el.querySelectorAll('input:not([type=hidden]), textarea').forEach(inp => {
-    if(inp.type==='checkbox'||inp.type==='radio') inp.checked=false;
-    else inp.value='';
-    inp.disabled=false;
+  // คืนปุ่มทุกปุ่มให้ใช้งานได้เสมอ
+  el.querySelectorAll('button').forEach(btn => {
+    btn.disabled=false; btn.style.opacity=''; btn.style.cursor='';
+    // คืน text ถ้ามี _origText เก็บไว้
+    if(btn._origText) { btn.textContent=btn._origText; btn._origText=null; }
   });
-  el.querySelectorAll('select').forEach(sel => sel.disabled=false);
 }
 
 // ── Projects Grid ─────────────────────────────────────────────
@@ -729,7 +735,7 @@ async function saveUser() {
   const email=$('uf-email').value.trim(), name=$('uf-name').value.trim();
   const role=$('uf-role').value, active=$('uf-active').value;
   if(!email||!name){ toast('กรุณากรอกอีเมลและชื่อ','err'); return; }
-  lockModal('m-user');
+  const _saveBtn = lockSaveBtn('m-user');
   try {
     if(S.editingUserId){
       const newPw=$('uf-new-pw').value;
@@ -737,12 +743,12 @@ async function saveUser() {
       toast('บันทึกสำเร็จ','ok');
     } else {
       const pw=$('uf-pw').value;
-      if(!pw||pw.length<6){ toast('รหัสผ่านต้องมีอย่างน้อย 6 ตัว','err'); unlockModal('m-user'); return; }
+      if(!pw||pw.length<6){ toast('รหัสผ่านต้องมีอย่างน้อย 6 ตัว','err'); unlockSaveBtn(_saveBtn); return; }
       await api('createUser',{email, name, role, active, password:pw});
       toast(`สร้าง User ${email} สำเร็จ`,'ok');
     }
     closeModal('m-user'); await loadAll(); renderUsersTable();
-  } catch(e){ toast(e.message,'err'); unlockModal('m-user'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
 }
 
 // ── Project Modal ─────────────────────────────────────────────
@@ -771,7 +777,7 @@ function openProjectModal(id=null) {
 
 async function saveProject() {
   const name=$('pf-name').value.trim(); if(!name){ toast('กรุณาใส่ชื่อ','err'); return; }
-  lockModal('m-project'); loading(true);
+  const _saveBtn = lockSaveBtn('m-project'); loading(true);
   const payload={name, description:$('pf-desc').value.trim(), status:$('pf-status').value, color:S.projColor, startDate:$('pf-start').value, endDate:$('pf-end').value};
   try {
     if(S.editingProjectId){
@@ -780,20 +786,20 @@ async function saveProject() {
       toast('บันทึกสำเร็จ','ok');
     } else { const data=await api('createProject',payload); S.projects.push(data.project); toast('สร้าง Project สำเร็จ','ok'); }
     updateSidebar(); renderProjectsGrid(); closeModal('m-project');
-  } catch(e){ toast(e.message,'err'); unlockModal('m-project'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
   finally { loading(false); }
 }
 
 async function deleteProject() {
   if(!S.editingProjectId||!confirm('ลบ Project นี้? Tasks ทั้งหมดจะถูกซ่อน')) return;
-  lockModal('m-project'); loading(true);
+  const _saveBtn = lockSaveBtn('m-project'); loading(true);
   try {
     await api('deleteProject',{projectId:S.editingProjectId});
     S.projects=S.projects.filter(p=>p.id!==S.editingProjectId);
     S.tasks=S.tasks.filter(t=>t.projectId!==S.editingProjectId);
     S.milestones=S.milestones.filter(m=>m.projectId!==S.editingProjectId);
     closeModal('m-project'); updateSidebar(); renderProjectsGrid(); toast('ลบ Project สำเร็จ','ok');
-  } catch(e){ toast(e.message,'err'); unlockModal('m-project'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
   finally { loading(false); }
 }
 
@@ -820,7 +826,7 @@ function openMilestoneModal(id=null) {
 
 async function saveMilestone() {
   const name=$('msf-name').value.trim(); if(!name){ toast('กรุณาใส่ชื่อ','err'); return; }
-  lockModal('m-milestone'); loading(true);
+  const _saveBtn = lockSaveBtn('m-milestone'); loading(true);
   const payload={name, description:$('msf-desc').value.trim(), targetDate:$('msf-date').value, status:$('msf-status').value, projectId:S.currentProject};
   try {
     if(S.editingMsId){
@@ -842,19 +848,19 @@ async function saveMilestone() {
     });
     closeModal('m-milestone');
     renderProjectDetail(S.currentProject);
-  } catch(e){ toast(e.message,'err'); unlockModal('m-milestone'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
   finally { loading(false); }
 }
 
 async function deleteMilestone() {
   if(!S.editingMsId||!confirm('ลบ Milestone? Tasks ที่เชื่อมอยู่จะไม่ถูกลบ')) return;
-  lockModal('m-milestone'); loading(true);
+  const _saveBtn = lockSaveBtn('m-milestone'); loading(true);
   try {
     await api('deleteMilestone',{milestoneId:S.editingMsId});
     S.milestones=S.milestones.filter(m=>m.id!==S.editingMsId);
     S.tasks.forEach(t=>{ if(t.milestoneId===S.editingMsId) t.milestoneId=''; });
     renderProjectDetail(S.currentProject); closeModal('m-milestone'); toast('ลบ Milestone สำเร็จ','ok');
-  } catch(e){ toast(e.message,'err'); unlockModal('m-milestone'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
   finally { loading(false); }
 }
 
@@ -972,7 +978,7 @@ async function addTaskComment() {
 
 async function saveTask() {
   const title=$('tf-name').value.trim(); if(!title){ toast('กรุณาใส่ชื่อ','err'); return; }
-  lockModal('m-task'); loading(true);
+  const _saveBtn = lockSaveBtn('m-task'); loading(true);
   const payload={projectId:S.currentProject, title, description:$('tf-desc').value.trim(),
     type:$('tf-type').value, priority:$('tf-prio').value, lane:$('tf-lane').value,
     points:parseInt($('tf-pts').value)||0, assignee:$('tf-assignee').value,
@@ -984,18 +990,18 @@ async function saveTask() {
       toast('บันทึกสำเร็จ','ok');
     } else { const data=await api('createTask',payload); S.tasks.push(data.task); toast('สร้าง Task สำเร็จ','ok'); }
     closeModal('m-task'); renderProjectDetail(S.currentProject); updateProjectStats();
-  } catch(e){ toast(e.message,'err'); unlockModal('m-task'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
   finally { loading(false); }
 }
 
 async function deleteTask() {
   if(!S.editingTaskId||!confirm('ลบ Task? ข้อมูลใน Sheet จะยังอยู่แต่ไม่แสดงในระบบ')) return;
-  lockModal('m-task'); loading(true);
+  const _saveBtn = lockSaveBtn('m-task'); loading(true);
   try {
     await api('deleteTask',{taskId:S.editingTaskId});
     S.tasks=S.tasks.filter(t=>t.id!==S.editingTaskId);
     closeModal('m-task'); renderProjectDetail(S.currentProject); updateProjectStats(); toast('ลบ Task สำเร็จ','ok');
-  } catch(e){ toast(e.message,'err'); unlockModal('m-task'); }
+  } catch(e){ toast(e.message,'err'); unlockSaveBtn(_saveBtn); }
   finally { loading(false); }
 }
 
